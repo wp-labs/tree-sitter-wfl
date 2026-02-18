@@ -1,7 +1,7 @@
 {
   "name": "tree-sitter-wfl",
   "version": "0.1.0",
-  "description": "Tree-sitter grammar for WFL (WarpFusion Language)",
+  "description": "Tree-sitter grammar for WFL (WarpLabs Language)",
   "main": "bindings/node",
   "types": "bindings/node",
   "keywords": [
