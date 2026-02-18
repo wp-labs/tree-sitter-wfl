@@ -107,23 +107,19 @@
 ; ── Measure functions ──
 (measure) @function.builtin
 
-; ── Built-in function calls ──
+; ── Generic function calls (before builtins so builtins override) ──
 (function_call
-  function: (identifier) @function.builtin
-  (#any-of? @function.builtin
-    "count" "sum" "avg" "min" "max" "distinct"
-    "fmt" "baseline" "hit"
-    "contains" "regex_match" "len" "lower" "upper"
-    "time_diff" "time_bucket"
-    "collect_set" "collect_list" "first" "last"
-    "stddev" "percentile"))
+  function: (identifier) @function)
 
 ; ── Method-style function calls ──
 (function_call
   object: (identifier) @type
   method: (identifier) @function.method)
 
-; ── Generic function calls ──
+; ── Built-in function calls (last = wins) ──
+(function_call
+  function: (identifier) @function.builtin
+  (#match? @function.builtin "^(count|sum|avg|min|max|distinct|fmt|baseline|has|hit|contains|regex_match|len|lower|upper|time_diff|time_bucket|collect_set|collect_list|first|last|stddev|percentile)$"))
 (function_call
   function: (identifier) @function)
 
@@ -145,7 +141,12 @@
 (derive_item name: (identifier) @property)
 
 ; ── Conv operations ──
-(conv_step op: (identifier) @function.builtin)
+[
+  "sort"
+  "top"
+  "dedup"
+  "where"
+] @function.builtin
 
 ; ── Option keys ──
 (option_entry key: (identifier) @property)
