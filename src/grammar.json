@@ -347,8 +347,17 @@
           "type": "CHOICE",
           "members": [
             {
-              "type": "SYMBOL",
-              "name": "on_close_block"
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "on_close_block"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "and_close_block"
+                }
+              ]
             },
             {
               "type": "BLANK"
@@ -574,6 +583,34 @@
         {
           "type": "STRING",
           "value": "on"
+        },
+        {
+          "type": "STRING",
+          "value": "close"
+        },
+        {
+          "type": "STRING",
+          "value": "{"
+        },
+        {
+          "type": "REPEAT1",
+          "content": {
+            "type": "SYMBOL",
+            "name": "match_step"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": "}"
+        }
+      ]
+    },
+    "and_close_block": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "and"
         },
         {
           "type": "STRING",
@@ -1834,6 +1871,23 @@
           "members": [
             {
               "type": "STRING",
+              "value": "origin"
+            },
+            {
+              "type": "STRING",
+              "value": "=="
+            },
+            {
+              "type": "SYMBOL",
+              "name": "string"
+            }
+          ]
+        },
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
               "value": "entity_type"
             },
             {
@@ -2843,8 +2897,50 @@
       }
     },
     "identifier": {
-      "type": "PATTERN",
-      "value": "[a-zA-Z_][a-zA-Z0-9_]*"
+      "type": "TOKEN",
+      "content": {
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "PATTERN",
+                    "value": "[a-mo-zA-Z_][a-zA-Z0-9_]*"
+                  },
+                  {
+                    "type": "PATTERN",
+                    "value": "l[a-tv-zA-Z_][a-zA-Z0-9_]*"
+                  },
+                  {
+                    "type": "PATTERN",
+                    "value": "li[a-mo-zA-Z0-9_][a-zA-Z0-9_]*"
+                  },
+                  {
+                    "type": "PATTERN",
+                    "value": "lim[a-np-zA-Z0-9_][a-zA-Z0-9_]*"
+                  },
+                  {
+                    "type": "PATTERN",
+                    "value": "limi[a-s-zA-Z0-9_][a-zA-Z0-9_]*"
+                  },
+                  {
+                    "type": "PATTERN",
+                    "value": "limit[a-qs-zA-Z0-9_][a-zA-Z0-9_]*|"
+                  },
+                  {
+                    "type": "PATTERN",
+                    "value": "limits[0-9_][a-zA-Z0-9_]*"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
     }
   },
   "extras": [

@@ -76,7 +76,7 @@ module.exports = grammar({
       seq($.match_clause, repeat($.join_clause)),
 
     // ── Match clause ──
-    // on_event and on_close are both optional individually,
+    // on_event and on_close/and_close are both optional individually,
     // but at least one must be present (enforced by semantic check, not grammar).
     // -> score_output is optional for intermediate pipeline stages.
     match_clause: ($) =>
@@ -88,7 +88,7 @@ module.exports = grammar({
         "{",
         optional($.key_block),
         optional($.on_event_block),
-        optional($.on_close_block),
+        optional(choice($.on_close_block, $.and_close_block)),
         optional($.derive_block),
         "}",
         optional(seq("->", $.score_output)),
@@ -120,12 +120,17 @@ module.exports = grammar({
         ";",
       ),
 
-    // ── On event / on close blocks ──
+    // ── On event / on close / and close blocks ──
+    // on close = OR mode (event path and close path trigger independently)
+    // and close = AND mode (both paths must satisfy to trigger on close)
     on_event_block: ($) =>
       seq("on", "event", "{", repeat1($.match_step), "}"),
 
     on_close_block: ($) =>
       seq("on", "close", "{", repeat1($.match_step), "}"),
+
+    and_close_block: ($) =>
+      seq("and", "close", "{", repeat1($.match_step), "}"),
 
     // ── Derive block ──
     derive_block: ($) =>
@@ -346,6 +351,7 @@ module.exports = grammar({
       choice(
         seq("score", $.comparison_operator, $.number),
         seq("close_reason", "==", $.string),
+        seq("origin", "==", $.string),
         seq("entity_type", "==", $.string),
         seq("entity_id", "==", $.string),
         seq(
@@ -547,6 +553,21 @@ module.exports = grammar({
     duration: (_$) => token(/\d+[smhd]/),
 
     // ── Identifier ──
-    identifier: (_$) => /[a-zA-Z_][a-zA-Z0-9_]*/,
+    // Use negative lookbehind/lookahead to exclude keywords
+    identifier: (_$) =>
+      token(choice(
+        // Exclude keywords that would conflict
+        seq(
+          choice(
+            /[a-mo-zA-Z_][a-zA-Z0-9_]*/,  // doesn't start with 'l'
+            /l[a-tv-zA-Z_][a-zA-Z0-9_]*/,  // starts with 'l' but not 'li'
+            /li[a-mo-zA-Z0-9_][a-zA-Z0-9_]*/,  // starts with 'li' but not 'lim'
+            /lim[a-np-zA-Z0-9_][a-zA-Z0-9_]*/,  // starts with 'lim' but not 'limi'
+            /limi[a-s-zA-Z0-9_][a-zA-Z0-9_]*/,  // starts with 'limi' but not 'limit'
+            /limit[a-qs-zA-Z0-9_][a-zA-Z0-9_]*|/,  // starts with 'limit' but not 'limits'
+            /limits[0-9_][a-zA-Z0-9_]*/,  // starts with 'limits' but followed by digit/underscore
+          ),
+        ),
+      )),
   },
 });

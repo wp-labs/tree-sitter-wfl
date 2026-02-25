@@ -44,6 +44,21 @@
     }
   },
   {
+    "type": "and_close_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "match_step",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "binary_expression",
     "named": true,
     "fields": {
@@ -769,6 +784,10 @@
       "multiple": true,
       "required": true,
       "types": [
+        {
+          "type": "and_close_block",
+          "named": true
+        },
         {
           "type": "derive_block",
           "named": true
@@ -1602,6 +1621,10 @@
     "named": false
   },
   {
+    "type": "and",
+    "named": false
+  },
+  {
     "type": "asof",
     "named": false
   },
@@ -1775,6 +1798,10 @@
   },
   {
     "type": "options",
+    "named": false
+  },
+  {
+    "type": "origin",
     "named": false
   },
   {

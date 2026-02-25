@@ -13,6 +13,7 @@
   "conv"
   "test"
   "on"
+  "and"
   "event"
   "close"
   "derive"
@@ -38,6 +39,7 @@
   "fixed"
   "session"
   "field"
+  "origin"
 ] @keyword
 
 ; ── Boolean literals ──
@@ -120,8 +122,6 @@
 (key_item logical: (identifier) @property)
 
 ; ── Limits clause keys ──
-(limit_item key: (_) @property)
-
 ; ── Transform functions (distinct) ──
 (transform) @function.builtin
 
