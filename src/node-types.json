@@ -123,50 +123,6 @@
     "fields": {}
   },
   {
-    "type": "contract_block",
-    "named": true,
-    "fields": {
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
-      "rule": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "expect_block",
-          "named": true
-        },
-        {
-          "type": "given_block",
-          "named": true
-        },
-        {
-          "type": "options_block",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "conv_chain",
     "named": true,
     "fields": {},
@@ -546,51 +502,6 @@
     }
   },
   {
-    "type": "given_block",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "given_statement",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "given_statement",
-    "named": true,
-    "fields": {
-      "alias": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "duration",
-          "named": true
-        },
-        {
-          "type": "field_assignment",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "hit_assertion",
     "named": true,
     "fields": {},
@@ -648,6 +559,51 @@
     }
   },
   {
+    "type": "input_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "input_statement",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "input_statement",
+    "named": true,
+    "fields": {
+      "alias": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "duration",
+          "named": true
+        },
+        {
+          "type": "field_assignment",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "join_clause",
     "named": true,
     "fields": {
@@ -695,7 +651,115 @@
   {
     "type": "join_mode",
     "named": true,
-    "fields": {}
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "duration",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "key_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "key_item",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "key_item",
+    "named": true,
+    "fields": {
+      "logical": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "source": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "field_reference",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "limit_item",
+    "named": true,
+    "fields": {
+      "key": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "max_instances",
+            "named": false
+          },
+          {
+            "type": "max_memory",
+            "named": false
+          },
+          {
+            "type": "max_throttle",
+            "named": false
+          },
+          {
+            "type": "on_exceed",
+            "named": false
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "limits_clause",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "limit_item",
+          "named": true
+        }
+      ]
+    }
   },
   {
     "type": "match_clause",
@@ -707,6 +771,10 @@
       "types": [
         {
           "type": "derive_block",
+          "named": true
+        },
+        {
+          "type": "key_block",
           "named": true
         },
         {
@@ -817,7 +885,7 @@
         "required": true,
         "types": [
           {
-            "type": "identifier",
+            "type": "yield_field",
             "named": true
           }
         ]
@@ -1045,6 +1113,10 @@
           "named": true
         },
         {
+          "type": "limits_clause",
+          "named": true
+        },
+        {
           "type": "meta_block",
           "named": true
         },
@@ -1179,18 +1251,17 @@
   {
     "type": "source_file",
     "named": true,
-    "root": true,
     "fields": {},
     "children": {
       "multiple": true,
       "required": false,
       "types": [
         {
-          "type": "contract_block",
+          "type": "rule_declaration",
           "named": true
         },
         {
-          "type": "rule_declaration",
+          "type": "test_block",
           "named": true
         },
         {
@@ -1281,6 +1352,50 @@
     }
   },
   {
+    "type": "test_block",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "rule": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expect_block",
+          "named": true
+        },
+        {
+          "type": "input_block",
+          "named": true
+        },
+        {
+          "type": "options_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "transform",
     "named": true,
     "fields": {}
@@ -1333,18 +1448,7 @@
   {
     "type": "yield_clause",
     "named": true,
-    "fields": {
-      "target": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    },
+    "fields": {},
     "children": {
       "multiple": true,
       "required": true,
@@ -1352,8 +1456,57 @@
         {
           "type": "named_argument",
           "named": true
+        },
+        {
+          "type": "yield_target",
+          "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "yield_field",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "quoted_ident",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "yield_target",
+    "named": true,
+    "fields": {
+      "version": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "version_tag",
+            "named": true
+          }
+        ]
+      },
+      "window": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -1466,12 +1619,7 @@
   },
   {
     "type": "comment",
-    "named": true,
-    "extra": true
-  },
-  {
-    "type": "contract",
-    "named": false
+    "named": true
   },
   {
     "type": "conv",
@@ -1538,11 +1686,11 @@
     "named": false
   },
   {
-    "type": "for",
+    "type": "fixed",
     "named": false
   },
   {
-    "type": "given",
+    "type": "for",
     "named": false
   },
   {
@@ -1566,7 +1714,19 @@
     "named": false
   },
   {
+    "type": "input",
+    "named": false
+  },
+  {
     "type": "join",
+    "named": false
+  },
+  {
+    "type": "key",
+    "named": false
+  },
+  {
+    "type": "limits",
     "named": false
   },
   {
@@ -1575,6 +1735,18 @@
   },
   {
     "type": "max",
+    "named": false
+  },
+  {
+    "type": "max_instances",
+    "named": false
+  },
+  {
+    "type": "max_memory",
+    "named": false
+  },
+  {
+    "type": "max_throttle",
     "named": false
   },
   {
@@ -1598,8 +1770,16 @@
     "named": false
   },
   {
+    "type": "on_exceed",
+    "named": false
+  },
+  {
     "type": "options",
     "named": false
+  },
+  {
+    "type": "quoted_ident",
+    "named": true
   },
   {
     "type": "row",
@@ -1634,6 +1814,10 @@
     "named": false
   },
   {
+    "type": "test",
+    "named": false
+  },
+  {
     "type": "then",
     "named": false
   },
@@ -1650,10 +1834,6 @@
     "named": false
   },
   {
-    "type": "tumble",
-    "named": false
-  },
-  {
     "type": "use",
     "named": false
   },
@@ -1662,7 +1842,15 @@
     "named": true
   },
   {
+    "type": "version_tag",
+    "named": true
+  },
+  {
     "type": "where",
+    "named": false
+  },
+  {
+    "type": "within",
     "named": false
   },
   {

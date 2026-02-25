@@ -22,7 +22,7 @@ module.exports = grammar({
     source_file: ($) =>
       seq(
         repeat($.use_declaration),
-        repeat(choice($.rule_declaration, $.contract_block)),
+        repeat(choice($.rule_declaration, $.test_block)),
       ),
 
     // ── Comments ──
@@ -40,6 +40,7 @@ module.exports = grammar({
         optional($.meta_block),
         $.events_block,
         $.stage_chain,
+        optional($.limits_clause),
         "}",
       ),
 
@@ -85,6 +86,7 @@ module.exports = grammar({
         $.match_params,
         ">",
         "{",
+        optional($.key_block),
         optional($.on_event_block),
         optional($.on_close_block),
         optional($.derive_block),
@@ -101,9 +103,21 @@ module.exports = grammar({
 
     window_spec: ($) =>
       choice(
-        seq($.duration, ":", "tumble"),
+        seq($.duration, ":", "fixed"),
         seq("session", "(", $.duration, ")"),
         $.duration,
+      ),
+
+    // ── Key block (explicit key mapping for multi-source) ──
+    key_block: ($) =>
+      seq("key", "{", repeat1($.key_item), "}"),
+
+    key_item: ($) =>
+      seq(
+        field("logical", $.identifier),
+        "=",
+        field("source", $.field_reference),
+        ";",
       ),
 
     // ── On event / on close blocks ──
@@ -184,16 +198,16 @@ module.exports = grammar({
       seq(
         "join",
         field("window", $.identifier),
-        optional($.join_mode),
+        $.join_mode,
         "on",
         $.join_condition,
         repeat(seq("&&", $.join_condition)),
       ),
 
-    join_mode: (_$) =>
+    join_mode: ($) =>
       choice(
         "snapshot",
-        seq("asof"),
+        seq("asof", optional(seq("within", $.duration))),
       ),
 
     join_condition: ($) =>
@@ -214,19 +228,36 @@ module.exports = grammar({
     yield_clause: ($) =>
       seq(
         "yield",
-        optional(field("target", $.identifier)),
+        optional($.yield_target),
         "(",
         $.named_argument,
         repeat(seq(",", $.named_argument)),
         ")",
       ),
 
+    yield_target: ($) =>
+      seq(
+        field("window", $.identifier),
+        optional(seq("@", field("version", $.version_tag))),
+      ),
+
+    version_tag: (_$) => token(seq("v", /\d+/)),
+
     named_argument: ($) =>
       seq(
-        field("name", $.identifier),
+        field("name", $.yield_field),
         "=",
         field("value", $.expression),
       ),
+
+    yield_field: ($) =>
+      choice(
+        seq($.identifier, ".", $.identifier, repeat(seq(".", $.identifier))),
+        $.quoted_ident,
+        $.identifier,
+      ),
+
+    quoted_ident: (_$) => token(seq("`", /[^`]+/, "`")),
 
     // ── Conv clause (L3) ──
     conv_clause: ($) =>
@@ -243,24 +274,36 @@ module.exports = grammar({
         ")",
       ),
 
-    // ── Contract block ──
-    contract_block: ($) =>
+    // ── Limits clause ──
+    limits_clause: ($) =>
+      seq("limits", "{", repeat1($.limit_item), "}"),
+
+    limit_item: ($) =>
       seq(
-        "contract",
+        field("key", choice("max_memory", "max_instances", "max_throttle", "on_exceed")),
+        "=",
+        field("value", choice($.string, $.number)),
+        ";",
+      ),
+
+    // ── Test block ──
+    test_block: ($) =>
+      seq(
+        "test",
         field("name", $.identifier),
         "for",
         field("rule", $.identifier),
         "{",
-        $.given_block,
+        $.input_block,
         $.expect_block,
         optional($.options_block),
         "}",
       ),
 
-    given_block: ($) =>
-      seq("given", "{", repeat($.given_statement), "}"),
+    input_block: ($) =>
+      seq("input", "{", repeat($.input_statement), "}"),
 
-    given_statement: ($) =>
+    input_statement: ($) =>
       choice(
         seq(
           "row",

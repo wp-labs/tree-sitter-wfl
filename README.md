@@ -4,11 +4,11 @@
 
 ## Overview
 
-WFL defines event-driven processing rules that match patterns across data streams within time windows. It supports multi-stage pipelines, complex event joins, scoring, entity tracking, and a built-in contract testing framework.
+WFL defines event-driven processing rules that match patterns across data streams within time windows. It supports multi-stage pipelines, complex event joins, scoring, entity tracking, and a built-in test framework.
 
 ## Language Structure
 
-A WFL file consists of `use` declarations, `rule` definitions, and `contract` test blocks:
+A WFL file consists of `use` declarations, `rule` definitions, and `test` blocks:
 
 ```wfl
 use "path/to/module"
@@ -18,11 +18,11 @@ rule my_rule {
     events { ... }
     match <...> { ... } -> score(...)
     entity(...)
-    yield(...)
+    yield target@v1(...)
 }
 
-contract my_test for my_rule {
-    given { ... }
+test my_test for my_rule {
+    input { ... }
     expect { ... }
 }
 ```
@@ -53,7 +53,7 @@ rule brute_force {
         login: auth_stream && status == "failed"
     }
 
-    match <login.src_ip : 5m : tumble> {
+    match <login.src_ip : 5m> {
         on event {
             login.src_ip | count >= 10;
         }
@@ -101,9 +101,9 @@ match <login.src_ip : 5m : tumble> {
 ```
 
 **Window types:**
-- `5m : tumble` — tumbling window (fixed, non-overlapping)
+- `5m` — sliding window (default)
+- `5m : fixed` — fixed interval window (non-overlapping)
 - `session(30m)` — session window (gap-based)
-- `10m` — sliding window
 
 **Duration units:** `s` (seconds), `m` (minutes), `h` (hours), `d` (days).
 
@@ -185,11 +185,11 @@ match <login.src_ip : 5m : tumble> {
     on event { login.src_ip | count >= 10; }
 }
 join geo_db snapshot on login.src_ip == geo_db.ip
-join threat_intel asof on login.src_ip == threat_intel.indicator
+join threat_intel asof within 24h on login.src_ip == threat_intel.indicator
     && login.dst_ip == threat_intel.target
 ```
 
-Join modes: `snapshot` (point-in-time lookup), `asof` (temporal lookup).
+Join modes: `snapshot` (point-in-time lookup), `asof [within dur]` (temporal lookup).
 
 ### Entity Clause
 
@@ -206,7 +206,37 @@ Emit output with named fields:
 
 ```wfl
 yield(reason = "brute_force", count = login.src_ip | count, score = @risk_level)
-yield alert_stream(severity = "high", source = login.src_ip)
+yield alert_stream@v1(severity = "high", source = login.src_ip)
+```
+
+### Key Block
+
+Explicit key mapping for multi-source rules with different field names:
+
+```wfl
+match <sip : 5m> {
+    key {
+        sip = fail.src_ip;
+        sip = scan.src_addr;
+    }
+    on event { ... }
+} -> score(...)
+```
+
+### Limits Clause
+
+Optional resource budget declaration per rule:
+
+```wfl
+rule example {
+    ...
+    limits {
+        max_memory = "128MB";
+        max_instances = 10000;
+        max_throttle = "1000/m";
+        on_exceed = "throttle";
+    }
+}
 ```
 
 ### Conv Clause (Post-processing)
@@ -223,13 +253,13 @@ conv {
 
 Operations: `sort`, `top`, `dedup`, `where`.
 
-### Contract Block (Testing)
+### Test Block
 
 Built-in testing framework for rule validation:
 
 ```wfl
-contract test_brute_force for brute_force {
-    given {
+test test_brute_force for brute_force {
+    input {
         row(login, src_ip = "10.0.0.1", username = "admin", status = "failed");
         row(login, src_ip = "10.0.0.1", username = "root", status = "failed");
         tick(1m);
@@ -244,7 +274,8 @@ contract test_brute_force for brute_force {
         hit[0].close_reason == "timeout";
     }
     options {
-        timeout = "10s";
+        close_trigger = timeout;
+        eval_mode = strict;
     }
 }
 ```
@@ -268,7 +299,7 @@ Full expression system with operator precedence:
 
 **Variables:** `$VAR` or `${VAR:default_value}` for runtime substitution.
 
-**Built-in functions:** `count`, `sum`, `avg`, `min`, `max`, `distinct`, `fmt`, `baseline`, `has`, `hit`, `contains`, `regex_match`, `len`, `lower`, `upper`, `time_diff`, `time_bucket`, `collect_set`, `collect_list`, `first`, `last`, `stddev`, `percentile`.
+**Built-in functions:** `count`, `sum`, `avg`, `min`, `max`, `distinct`, `fmt`, `baseline`, `window.has`, `hit`, `contains`, `regex_match`, `len`, `lower`, `upper`, `time_diff`, `time_bucket`, `coalesce`, `try`, `collect_set`, `collect_list`, `first`, `last`, `stddev`, `percentile`.
 
 ## Usage
 
@@ -289,7 +320,7 @@ parser.set_language(&language).unwrap();
 
 let source = r#"rule example {
     events { e: stream }
-    match <e.id : 5m : tumble> {
+    match <e.id : 5m> {
         on event { e.id | count >= 1; }
     } -> score(1)
     entity("test", e.id)
@@ -310,7 +341,7 @@ parser.setLanguage(WFL);
 
 const tree = parser.parse(`rule example {
     events { e: stream }
-    match <e.id : 5m : tumble> {
+    match <e.id : 5m> {
         on event { e.id | count >= 1; }
     } -> score(1)
     entity("test", e.id)
