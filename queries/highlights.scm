@@ -1,9 +1,27 @@
-; WFL Syntax Highlighting Queries
+; WFL Syntax Highlighting Queries for Zed
+; Fine-grained captures; in Zed the LAST matching pattern wins.
 
-; ── Keywords ──
+; ── Plain identifiers (lowest priority — must be FIRST so later patterns override) ──
+(identifier) @variable
+
+; ── Import keyword ──
+"use" @keyword.import
+
+; ── Definition keywords ──
 [
-  "use"
   "rule"
+  "test"
+] @keyword
+
+; ── Control flow ──
+[
+  "if"
+  "then"
+  "else"
+] @keyword.control
+
+; ── Pipeline / structural keywords ──
+[
   "meta"
   "events"
   "match"
@@ -11,42 +29,56 @@
   "yield"
   "entity"
   "conv"
-  "test"
+  "derive"
+  "score"
   "on"
   "and"
   "event"
   "close"
-  "derive"
-  "score"
+  "key"
+  "limits"
+  "fixed"
+  "within"
+] @keyword
+
+; ── Test keywords ──
+[
   "input"
   "expect"
   "options"
-  "if"
-  "then"
-  "else"
-  "in"
-  "not"
   "for"
   "row"
   "tick"
   "hits"
   "hit"
-  "snapshot"
-  "asof"
-  "within"
-  "key"
-  "limits"
-  "fixed"
-  "session"
-  "field"
   "origin"
 ] @keyword
+
+; ── Keyword operators ──
+[
+  "in"
+  "not"
+] @keyword.operator
+
+; ── Join modes ──
+[
+  "snapshot"
+  "asof"
+] @keyword.modifier
+
+; ── Window spec keywords ──
+[
+  "tumble"
+  "session"
+] @keyword.modifier
 
 ; ── Boolean literals ──
 (boolean) @constant.builtin
 
-; ── Operators ──
+; ── Comparison operators ──
 (comparison_operator) @operator
+
+; ── Arithmetic / logical operators ──
 [
   "+"
   "-"
@@ -55,23 +87,25 @@
   "%"
   "&&"
   "||"
-  "|"
-  "|>"
-  "->"
 ] @operator
+
+; ── Pipe operators ──
+"|" @operator
+"|>" @keyword.operator
+"->" @keyword.operator
 
 ; ── Score weight @ sign ──
 (score_item "@" @punctuation.special)
 
-; ── Yield version @ sign ──
-(yield_target "@" @punctuation.special)
+; ── Brackets ──
+[ "(" ")" "{" "}" "[" "]" ] @punctuation.bracket
+[ "<" ">" ] @punctuation.bracket
 
-; ── Version tag ──
-(version_tag) @constant
+; ── Delimiters ──
+[ "," ";" ":" ] @punctuation.delimiter
 
-; ── Punctuation ──
-[ "(" ")" "{" "}" "[" "]" "<" ">" ] @punctuation.bracket
-[ "," ";" ":" "." ] @punctuation.delimiter
+; ── Dot accessor ──
+"." @punctuation.delimiter
 
 ; ── Comments ──
 (comment) @comment
@@ -94,69 +128,97 @@
 ; ── close_reason ──
 (close_reason_ref) @variable.builtin
 
-; ── Quoted identifiers (`field.name`) ──
-(quoted_ident) @string.special
-
-; ── Rule name ──
+; ── Rule definition name ──
 (rule_declaration name: (identifier) @function.definition)
 
-; ── Test name ──
-(test_block name: (identifier) @function.definition)
-(test_block rule: (identifier) @function)
+; ── Contract name + target rule ──
+(contract_block name: (identifier) @function.definition)
+(contract_block rule: (identifier) @function)
 
-; ── Window references in events ──
+; ── Event alias and window type ──
 (event_declaration
   alias: (identifier) @variable
   window: (identifier) @type)
 
-; ── Join window ──
+; ── Join window type ──
 (join_clause window: (identifier) @type)
 
-; ── Yield target ──
-(yield_target window: (identifier) @type)
+; ── Yield target type ──
+(yield_clause target: (identifier) @type)
 
 ; ── Entity type ──
 (entity_clause type: (identifier) @type)
+(entity_clause type: (string) @type)
 
-; ── Key block logical key names ──
-(key_item logical: (identifier) @property)
-
-; ── Limits clause keys ──
-; ── Transform functions (distinct) ──
+; ── Transform keywords (distinct in pipe chain) ──
 (transform) @function.builtin
 
-; ── Measure functions ──
+; ── Measure keywords (count/sum/avg/min/max in pipe chain) ──
 (measure) @function.builtin
 
-; ── Generic function calls (before builtins so builtins override) ──
+; ── Generic function calls (must come BEFORE builtins so builtins override) ──
 (function_call
-  function: (identifier) @function)
+  function: (identifier) @function.call)
 
-; ── Method-style function calls ──
+; ── Method-style calls (e.g. window.has, bad_domains.has) ──
 (function_call
   object: (identifier) @type
   method: (identifier) @function.method)
 
-; ── Built-in function calls (last = wins) ──
-(function_call
-  function: (identifier) @function.builtin
-  (#match? @function.builtin "^(count|sum|avg|min|max|distinct|fmt|baseline|has|hit|contains|regex_match|len|lower|upper|time_diff|time_bucket|collect_set|collect_list|first|last|stddev|percentile|coalesce|try)$"))
-(function_call
-  function: (identifier) @function)
+; ── Built-in function calls (LAST = wins over generic @function.call) ──
+; L1 aggregation
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "count"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "sum"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "avg"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "min"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "max"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "distinct"))
+; L1 formatting
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "fmt"))
+; L2 baseline / scoring
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "baseline"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "has"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "hit"))
+; L2 string functions
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "contains"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "regex_match"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "len"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "lower"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "upper"))
+; L2 time functions
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "time_diff"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "time_bucket"))
+; L3 collection functions
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "collect_set"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "collect_list"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "first"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "last"))
+; L3 statistics
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "stddev"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "percentile"))
 
-; ── Field references ──
+; ── Method-style built-in calls (has, etc.) ──
+(function_call
+  object: (identifier) @type
+  method: (identifier) @function.builtin
+  (#eq? @function.builtin "has"))
+
+; ── Field references: alias.field ──
 (field_reference
   object: (identifier) @variable
   field: (identifier) @property)
 
 ; ── Named arguments in yield ──
-(named_argument name: (yield_field) @property)
+(named_argument name: (identifier) @property)
 
-; ── Meta keys ──
+; ── Meta entry keys ──
 (meta_entry key: (identifier) @property)
 
 ; ── Score item name ──
 (score_item name: (identifier) @property)
+
+; ── Score item weight ──
+(score_item weight: (number) @number)
 
 ; ── Derive item name ──
 (derive_item name: (identifier) @property)
@@ -169,16 +231,37 @@
   "where"
 ] @function.builtin
 
-; ── Limits item keys ──
-[
-  "max_memory"
-  "max_instances"
-  "max_throttle"
-  "on_exceed"
-] @property
-
-; ── Option keys ──
+; ── Option keys & values ──
 (option_entry key: (identifier) @property)
+(option_entry value: (identifier) @constant)
 
-; ── Plain identifiers (fallback) ──
-(identifier) @variable
+; ── Field assignment in given ──
+(field_assignment field: (identifier) @property)
+(field_assignment field: (string) @property)
+
+; ── Expect hit assertions ──
+(hit_assertion "score" @property)
+(hit_assertion "close_reason" @property)
+(hit_assertion "origin" @property)
+(hit_assertion "entity_type" @property)
+(hit_assertion "entity_id" @property)
+(hit_assertion "field" @function.builtin)
+
+; ── Match params: key fields ──
+(match_params (field_reference
+  object: (identifier) @variable
+  field: (identifier) @property))
+
+; ── Source expression in step branches ──
+(source_expression
+  source: (identifier) @variable)
+(source_expression
+  source: (identifier) @variable
+  field: (identifier) @property)
+
+; ── Aggregate pipe source ──
+(aggregate_pipe_expression
+  source: (identifier) @variable)
+(aggregate_pipe_expression
+  source: (identifier) @variable
+  field: (identifier) @property)
