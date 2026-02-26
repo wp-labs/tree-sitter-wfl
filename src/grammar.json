@@ -2925,7 +2925,7 @@
                   },
                   {
                     "type": "PATTERN",
-                    "value": "limit[a-qs-zA-Z0-9_][a-zA-Z0-9_]*|"
+                    "value": "limit[a-qs-zA-Z0-9_][a-zA-Z0-9_]*"
                   },
                   {
                     "type": "PATTERN",

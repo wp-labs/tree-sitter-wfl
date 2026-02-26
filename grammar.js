@@ -564,7 +564,7 @@ module.exports = grammar({
             /li[a-mo-zA-Z0-9_][a-zA-Z0-9_]*/,  // starts with 'li' but not 'lim'
             /lim[a-np-zA-Z0-9_][a-zA-Z0-9_]*/,  // starts with 'lim' but not 'limi'
             /limi[a-s-zA-Z0-9_][a-zA-Z0-9_]*/,  // starts with 'limi' but not 'limit'
-            /limit[a-qs-zA-Z0-9_][a-zA-Z0-9_]*|/,  // starts with 'limit' but not 'limits'
+            /limit[a-qs-zA-Z0-9_][a-zA-Z0-9_]*/,  // starts with 'limit' but not 'limits'
             /limits[0-9_][a-zA-Z0-9_]*/,  // starts with 'limits' but followed by digit/underscore
           ),
         ),
