@@ -13,7 +13,7 @@
     "version": "0.1.0",
     "license": "MIT",
     "description": "Tree-sitter grammar for WFL (WarpLabs Language)",
-    "authors": ["WarpLabs"],
+    "authors": [{"name": "WarpLabs"}],
     "repository": {
       "type": "git",
       "url": "https://github.com/wp-labs/tree-sitter-wfl"
