@@ -1270,7 +1270,6 @@
   {
     "type": "source_file",
     "named": true,
-    "root": true,
     "fields": {},
     "children": {
       "multiple": true,
@@ -1414,11 +1413,6 @@
         }
       ]
     }
-  },
-  {
-    "type": "transform",
-    "named": true,
-    "fields": {}
   },
   {
     "type": "unary_expression",
@@ -1643,8 +1637,7 @@
   },
   {
     "type": "comment",
-    "named": true,
-    "extra": true
+    "named": true
   },
   {
     "type": "conv",
@@ -1665,10 +1658,6 @@
   {
     "type": "derive_reference",
     "named": true
-  },
-  {
-    "type": "distinct",
-    "named": false
   },
   {
     "type": "duration",
@@ -1857,6 +1846,10 @@
   {
     "type": "top",
     "named": false
+  },
+  {
+    "type": "transform",
+    "named": true
   },
   {
     "type": "true",

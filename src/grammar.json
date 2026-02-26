@@ -1,5 +1,4 @@
 {
-  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/grammar.schema.json",
   "name": "wfl",
   "word": "identifier",
   "rules": {
@@ -873,13 +872,8 @@
       ]
     },
     "transform": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "distinct"
-        }
-      ]
+      "type": "STRING",
+      "value": "distinct"
     },
     "measure": {
       "type": "CHOICE",
@@ -2958,6 +2952,5 @@
   "precedences": [],
   "externals": [],
   "inline": [],
-  "supertypes": [],
-  "reserved": {}
+  "supertypes": []
 }

@@ -1,0 +1,22 @@
+{
+  "grammars": [
+    {
+      "name": "wfl",
+      "camelcase": "Wfl",
+      "scope": "source.wfl",
+      "path": ".",
+      "file-types": ["wfl"],
+      "highlights": "queries/highlights.scm"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Tree-sitter grammar for WFL (WarpLabs Language)",
+    "authors": ["WarpLabs"],
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/wp-labs/tree-sitter-wfl"
+    }
+  }
+}

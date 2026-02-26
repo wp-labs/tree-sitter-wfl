@@ -176,7 +176,7 @@ module.exports = grammar({
         $.primary,
       ),
 
-    transform: (_$) => choice("distinct"),
+    transform: (_$) => "distinct",
 
     measure: (_$) => choice("count", "sum", "avg", "min", "max"),
 
