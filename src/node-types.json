@@ -128,6 +128,25 @@
     "fields": {}
   },
   {
+    "type": "close_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "and_close_block",
+          "named": true
+        },
+        {
+          "type": "on_close_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "close_reason_ref",
     "named": true,
     "fields": {}
@@ -206,25 +225,10 @@
     }
   },
   {
-    "type": "derive_block",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "derive_item",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "derive_item",
+    "type": "each_clause",
     "named": true,
     "fields": {
-      "name": {
+      "alias": {
         "multiple": false,
         "required": true,
         "types": [
@@ -234,9 +238,9 @@
           }
         ]
       },
-      "value": {
+      "filter": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "expression",
@@ -451,6 +455,10 @@
           {
             "type": "identifier",
             "named": true
+          },
+          {
+            "type": "variable",
+            "named": true
           }
         ]
       }
@@ -465,6 +473,37 @@
         },
         {
           "type": "string",
+          "named": true
+        },
+        {
+          "type": "variable",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "final_stage",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "each_clause",
+          "named": true
+        },
+        {
+          "type": "join_clause",
+          "named": true
+        },
+        {
+          "type": "match_clause",
+          "named": true
+        },
+        {
+          "type": "score_call",
           "named": true
         }
       ]
@@ -750,6 +789,10 @@
         "required": true,
         "types": [
           {
+            "type": "identifier",
+            "named": true
+          },
+          {
             "type": "number",
             "named": true
           },
@@ -785,11 +828,7 @@
       "required": true,
       "types": [
         {
-          "type": "and_close_block",
-          "named": true
-        },
-        {
-          "type": "derive_block",
+          "type": "close_block",
           "named": true
         },
         {
@@ -801,15 +840,7 @@
           "named": true
         },
         {
-          "type": "on_close_block",
-          "named": true
-        },
-        {
           "type": "on_event_block",
-          "named": true
-        },
-        {
-          "type": "score_output",
           "named": true
         }
       ]
@@ -922,6 +953,29 @@
     }
   },
   {
+    "type": "non_scoring_stage",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "each_clause",
+          "named": true
+        },
+        {
+          "type": "join_clause",
+          "named": true
+        },
+        {
+          "type": "match_clause",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "not_in_expression",
     "named": true,
     "fields": {},
@@ -1021,6 +1075,99 @@
       "types": [
         {
           "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "pattern_argument",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "duration",
+          "named": true
+        },
+        {
+          "type": "field_reference",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "pattern_declaration",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "param": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "match_clause",
+          "named": true
+        },
+        {
+          "type": "score_call",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "pattern_invocation",
+    "named": true,
+    "fields": {
+      "pattern": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "pattern_argument",
           "named": true
         }
       ]
@@ -1128,6 +1275,14 @@
       "required": true,
       "types": [
         {
+          "type": "conv_clause",
+          "named": true
+        },
+        {
+          "type": "entity_clause",
+          "named": true
+        },
+        {
           "type": "events_block",
           "named": true
         },
@@ -1140,14 +1295,18 @@
           "named": true
         },
         {
-          "type": "stage_chain",
+          "type": "rule_flow",
+          "named": true
+        },
+        {
+          "type": "yield_clause",
           "named": true
         }
       ]
     }
   },
   {
-    "type": "score_block",
+    "type": "rule_flow",
     "named": true,
     "fields": {},
     "children": {
@@ -1155,7 +1314,15 @@
       "required": true,
       "types": [
         {
-          "type": "score_item",
+          "type": "join_clause",
+          "named": true
+        },
+        {
+          "type": "pattern_invocation",
+          "named": true
+        },
+        {
+          "type": "stage_chain",
           "named": true
         }
       ]
@@ -1171,61 +1338,6 @@
       "types": [
         {
           "type": "expression",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "score_item",
-    "named": true,
-    "fields": {
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
-      "value": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "expression",
-            "named": true
-          }
-        ]
-      },
-      "weight": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "number",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "score_output",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "score_block",
-          "named": true
-        },
-        {
-          "type": "score_call",
           "named": true
         }
       ]
@@ -1252,6 +1364,10 @@
           {
             "type": "identifier",
             "named": true
+          },
+          {
+            "type": "variable",
+            "named": true
           }
         ]
       }
@@ -1277,6 +1393,10 @@
       "required": false,
       "types": [
         {
+          "type": "pattern_declaration",
+          "named": true
+        },
+        {
           "type": "rule_declaration",
           "named": true
         },
@@ -1292,25 +1412,6 @@
     }
   },
   {
-    "type": "stage",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "join_clause",
-          "named": true
-        },
-        {
-          "type": "match_clause",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "stage_chain",
     "named": true,
     "fields": {},
@@ -1319,19 +1420,11 @@
       "required": true,
       "types": [
         {
-          "type": "conv_clause",
+          "type": "final_stage",
           "named": true
         },
         {
-          "type": "entity_clause",
-          "named": true
-        },
-        {
-          "type": "stage",
-          "named": true
-        },
-        {
-          "type": "yield_clause",
+          "type": "non_scoring_stage",
           "named": true
         }
       ]
@@ -1456,6 +1549,10 @@
         {
           "type": "duration",
           "named": true
+        },
+        {
+          "type": "variable",
+          "named": true
         }
       ]
     }
@@ -1502,22 +1599,22 @@
     "type": "yield_target",
     "named": true,
     "fields": {
+      "target": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
       "version": {
         "multiple": false,
         "required": false,
         "types": [
           {
             "type": "version_tag",
-            "named": true
-          }
-        ]
-      },
-      "window": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
             "named": true
           }
         ]
@@ -1654,16 +1751,16 @@
     "named": false
   },
   {
-    "type": "derive",
-    "named": false
-  },
-  {
     "type": "derive_reference",
     "named": true
   },
   {
     "type": "duration",
     "named": true
+  },
+  {
+    "type": "each",
+    "named": false
   },
   {
     "type": "else",
@@ -1795,6 +1892,10 @@
   },
   {
     "type": "origin",
+    "named": false
+  },
+  {
+    "type": "pattern",
     "named": false
   },
   {

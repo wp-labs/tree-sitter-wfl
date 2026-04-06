@@ -18,20 +18,36 @@ module.exports = grammar({
 
   word: ($) => $.identifier,
 
+  conflicts: ($) => [
+    [$.primary, $.field_reference],
+  ],
+
   rules: {
     source_file: ($) =>
       seq(
         repeat($.use_declaration),
-        repeat(choice($.rule_declaration, $.test_block)),
+        repeat(choice($.pattern_declaration, $.rule_declaration, $.test_block)),
       ),
 
-    // ── Comments ──
     comment: (_$) => token(seq("//", /.*/)),
 
-    // ── Use declarations ──
     use_declaration: ($) => seq("use", $.string),
 
-    // ── Rule declaration ──
+    pattern_declaration: ($) =>
+      seq(
+        "pattern",
+        field("name", $.identifier),
+        "(",
+        field("param", $.identifier),
+        repeat(seq(",", field("param", $.identifier))),
+        ")",
+        "{",
+        $.match_clause,
+        "->",
+        $.score_call,
+        "}",
+      ),
+
     rule_declaration: ($) =>
       seq(
         "rule",
@@ -39,18 +55,25 @@ module.exports = grammar({
         "{",
         optional($.meta_block),
         $.events_block,
-        $.stage_chain,
+        $.rule_flow,
+        $.entity_clause,
+        $.yield_clause,
+        optional($.conv_clause),
         optional($.limits_clause),
         "}",
       ),
 
-    // ── Meta block ──
+    rule_flow: ($) =>
+      choice(
+        seq($.pattern_invocation, repeat($.join_clause)),
+        $.stage_chain,
+      ),
+
     meta_block: ($) => seq("meta", "{", repeat($.meta_entry), "}"),
 
     meta_entry: ($) =>
       seq(field("key", $.identifier), "=", field("value", $.string)),
 
-    // ── Events block ──
     events_block: ($) =>
       seq("events", "{", repeat1($.event_declaration), "}"),
 
@@ -62,23 +85,36 @@ module.exports = grammar({
         optional(seq("&&", $.expression)),
       ),
 
-    // ── Stage chain (supports |> pipeline for L3) ──
     stage_chain: ($) =>
-      seq(
-        $.stage,
-        repeat(seq("|>", $.stage)),
-        $.entity_clause,
-        $.yield_clause,
-        optional($.conv_clause),
+      choice(
+        $.final_stage,
+        seq(
+          $.non_scoring_stage,
+          repeat1(seq("|>", $.non_scoring_stage)),
+          "|>",
+          $.final_stage,
+        ),
       ),
 
-    stage: ($) =>
-      seq($.match_clause, repeat($.join_clause)),
+    non_scoring_stage: ($) =>
+      seq(choice($.match_clause, $.each_clause), repeat($.join_clause)),
 
-    // ── Match clause ──
-    // on_event and on_close/and_close are both optional individually,
-    // but at least one must be present (enforced by semantic check, not grammar).
-    // -> score_output is optional for intermediate pipeline stages.
+    final_stage: ($) =>
+      seq(
+        choice($.match_clause, $.each_clause),
+        "->",
+        $.score_call,
+        repeat($.join_clause),
+      ),
+
+    each_clause: ($) =>
+      seq(
+        "on",
+        "each",
+        field("alias", $.identifier),
+        optional(seq("where", field("filter", $.expression))),
+      ),
+
     match_clause: ($) =>
       seq(
         "match",
@@ -87,28 +123,28 @@ module.exports = grammar({
         ">",
         "{",
         optional($.key_block),
-        optional($.on_event_block),
-        optional(choice($.on_close_block, $.and_close_block)),
-        optional($.derive_block),
+        $.on_event_block,
+        optional($.close_block),
         "}",
-        optional(seq("->", $.score_output)),
       ),
 
     match_params: ($) =>
       seq(
-        optional(seq($.field_reference, repeat(seq(",", $.field_reference)))),
+        optional(
+          seq($.field_reference, repeat(seq(",", $.field_reference))),
+        ),
         ":",
         $.window_spec,
       ),
 
     window_spec: ($) =>
       choice(
-        seq($.duration, ":", "fixed"),
-        seq("session", "(", $.duration, ")"),
+        seq(choice($.duration, $.variable), ":", "fixed"),
+        seq("session", "(", choice($.duration, $.variable), ")"),
         $.duration,
+        $.variable,
       ),
 
-    // ── Key block (explicit key mapping for multi-source) ──
     key_block: ($) =>
       seq("key", "{", repeat1($.key_item), "}"),
 
@@ -120,11 +156,10 @@ module.exports = grammar({
         ";",
       ),
 
-    // ── On event / on close / and close blocks ──
-    // on close = OR mode (event path and close path trigger independently)
-    // and close = AND mode (both paths must satisfy to trigger on close)
     on_event_block: ($) =>
       seq("on", "event", "{", repeat1($.match_step), "}"),
+
+    close_block: ($) => choice($.on_close_block, $.and_close_block),
 
     on_close_block: ($) =>
       seq("on", "close", "{", repeat1($.match_step), "}"),
@@ -132,19 +167,6 @@ module.exports = grammar({
     and_close_block: ($) =>
       seq("and", "close", "{", repeat1($.match_step), "}"),
 
-    // ── Derive block ──
-    derive_block: ($) =>
-      seq("derive", "{", repeat1($.derive_item), "}"),
-
-    derive_item: ($) =>
-      seq(
-        field("name", $.identifier),
-        "=",
-        field("value", $.expression),
-        ";",
-      ),
-
-    // ── Match step (with OR branches via ||) ──
     match_step: ($) =>
       seq($.step_branch, repeat(seq("||", $.step_branch)), ";"),
 
@@ -158,7 +180,7 @@ module.exports = grammar({
 
     source_expression: ($) =>
       seq(
-        field("source", $.identifier),
+        field("source", choice($.identifier, $.variable)),
         optional(
           choice(
             seq(".", field("field", $.identifier)),
@@ -180,25 +202,25 @@ module.exports = grammar({
 
     measure: (_$) => choice("count", "sum", "avg", "min", "max"),
 
-    // ── Score output ──
-    score_output: ($) => choice($.score_call, $.score_block),
-
     score_call: ($) => seq("score", "(", $.expression, ")"),
 
-    score_block: ($) =>
-      seq("score", "{", repeat1($.score_item), "}"),
-
-    score_item: ($) =>
+    pattern_invocation: ($) =>
       seq(
-        field("name", $.identifier),
-        "=",
-        field("value", $.expression),
-        "@",
-        field("weight", $.number),
-        ";",
+        field("pattern", $.identifier),
+        "(",
+        $.pattern_argument,
+        repeat(seq(",", $.pattern_argument)),
+        ")",
       ),
 
-    // ── Join clause ──
+    pattern_argument: ($) =>
+      choice(
+        $.field_reference,
+        $.duration,
+        $.number,
+        $.string,
+      ),
+
     join_clause: ($) =>
       seq(
         "join",
@@ -218,7 +240,6 @@ module.exports = grammar({
     join_condition: ($) =>
       seq($.field_reference, "==", $.field_reference),
 
-    // ── Entity clause ──
     entity_clause: ($) =>
       seq(
         "entity",
@@ -229,11 +250,10 @@ module.exports = grammar({
         ")",
       ),
 
-    // ── Yield clause ──
     yield_clause: ($) =>
       seq(
         "yield",
-        optional($.yield_target),
+        $.yield_target,
         "(",
         $.named_argument,
         repeat(seq(",", $.named_argument)),
@@ -242,7 +262,7 @@ module.exports = grammar({
 
     yield_target: ($) =>
       seq(
-        field("window", $.identifier),
+        field("target", $.identifier),
         optional(seq("@", field("version", $.version_tag))),
       ),
 
@@ -264,7 +284,6 @@ module.exports = grammar({
 
     quoted_ident: (_$) => token(seq("`", /[^`]+/, "`")),
 
-    // ── Conv clause (L3) ──
     conv_clause: ($) =>
       seq("conv", "{", repeat1($.conv_chain), "}"),
 
@@ -279,7 +298,6 @@ module.exports = grammar({
         ")",
       ),
 
-    // ── Limits clause ──
     limits_clause: ($) =>
       seq("limits", "{", repeat1($.limit_item), "}"),
 
@@ -287,11 +305,10 @@ module.exports = grammar({
       seq(
         field("key", choice("max_memory", "max_instances", "max_throttle", "on_exceed")),
         "=",
-        field("value", choice($.string, $.number)),
+        field("value", choice($.string, $.number, $.identifier)),
         ";",
       ),
 
-    // ── Test block ──
     test_block: ($) =>
       seq(
         "test",
@@ -336,15 +353,7 @@ module.exports = grammar({
     expect_statement: ($) =>
       choice(
         seq("hits", $.comparison_operator, $.number, ";"),
-        seq(
-          "hit",
-          "[",
-          $.number,
-          "]",
-          ".",
-          $.hit_assertion,
-          ";",
-        ),
+        seq("hit", "[", $.number, "]", ".", $.hit_assertion, ";"),
       ),
 
     hit_assertion: ($) =>
@@ -375,7 +384,6 @@ module.exports = grammar({
         ";",
       ),
 
-    // ── Expressions ──
     expression: ($) =>
       choice(
         $.binary_expression,
@@ -441,13 +449,28 @@ module.exports = grammar({
     in_expression: ($) =>
       prec(
         PREC.COMPARE,
-        seq($.expression, "in", "(", $.expression, repeat(seq(",", $.expression)), ")"),
+        seq(
+          $.expression,
+          "in",
+          "(",
+          $.expression,
+          repeat(seq(",", $.expression)),
+          ")",
+        ),
       ),
 
     not_in_expression: ($) =>
       prec(
         PREC.COMPARE,
-        seq($.expression, "not", "in", "(", $.expression, repeat(seq(",", $.expression)), ")"),
+        seq(
+          $.expression,
+          "not",
+          "in",
+          "(",
+          $.expression,
+          repeat(seq(",", $.expression)),
+          ")",
+        ),
       ),
 
     primary: ($) =>
@@ -467,24 +490,22 @@ module.exports = grammar({
 
     parenthesized_expression: ($) => seq("(", $.expression, ")"),
 
-    // ── Field references ──
     field_reference: ($) =>
       choice(
         prec(
           PREC.MEMBER,
-          seq(field("object", $.identifier), ".", field("field", $.identifier)),
+          seq(field("object", choice($.identifier, $.variable)), ".", field("field", $.identifier)),
         ),
         prec(
           PREC.MEMBER,
-          seq(field("object", $.identifier), "[", $.string, "]"),
+          seq(field("object", choice($.identifier, $.variable)), "[", $.string, "]"),
         ),
         $.identifier,
+        $.variable,
       ),
 
-    // ── Function calls ──
     function_call: ($) =>
       choice(
-        // method-style: window.has(...)
         prec(
           PREC.MEMBER,
           seq(
@@ -496,7 +517,6 @@ module.exports = grammar({
             ")",
           ),
         ),
-        // regular: func(...)
         seq(
           field("function", $.identifier),
           "(",
@@ -505,7 +525,6 @@ module.exports = grammar({
         ),
       ),
 
-    // ── Aggregate pipe expression ──
     aggregate_pipe_expression: ($) =>
       prec.left(
         PREC.PIPE,
@@ -523,13 +542,10 @@ module.exports = grammar({
         ),
       ),
 
-    // ── Derive reference: @name ──
     derive_reference: (_$) => token(seq("@", /[a-zA-Z_][a-zA-Z0-9_]*/)),
 
-    // ── close_reason ──
     close_reason_ref: (_$) => "close_reason",
 
-    // ── Variables: $VAR and ${VAR:default} ──
     variable: (_$) =>
       token(
         choice(
@@ -538,11 +554,9 @@ module.exports = grammar({
         ),
       ),
 
-    // ── Comparison operators ──
     comparison_operator: (_$) =>
       choice("==", "!=", "<", ">", "<=", ">="),
 
-    // ── Literals ──
     number: (_$) => token(/\d+(\.\d+)?/),
 
     string: (_$) =>
@@ -550,22 +564,19 @@ module.exports = grammar({
 
     boolean: (_$) => choice("true", "false"),
 
-    duration: (_$) => token(/\d+[smhd]/),
+    duration: (_$) => token(/\d+(ms|[smhd])/),
 
-    // ── Identifier ──
-    // Use negative lookbehind/lookahead to exclude keywords
     identifier: (_$) =>
       token(choice(
-        // Exclude keywords that would conflict
         seq(
           choice(
-            /[a-mo-zA-Z_][a-zA-Z0-9_]*/,  // doesn't start with 'l'
-            /l[a-tv-zA-Z_][a-zA-Z0-9_]*/,  // starts with 'l' but not 'li'
-            /li[a-mo-zA-Z0-9_][a-zA-Z0-9_]*/,  // starts with 'li' but not 'lim'
-            /lim[a-np-zA-Z0-9_][a-zA-Z0-9_]*/,  // starts with 'lim' but not 'limi'
-            /limi[a-s-zA-Z0-9_][a-zA-Z0-9_]*/,  // starts with 'limi' but not 'limit'
-            /limit[a-qs-zA-Z0-9_][a-zA-Z0-9_]*/,  // starts with 'limit' but not 'limits'
-            /limits[0-9_][a-zA-Z0-9_]*/,  // starts with 'limits' but followed by digit/underscore
+            /[a-mo-zA-Z_][a-zA-Z0-9_]*/,
+            /l[a-tv-zA-Z_][a-zA-Z0-9_]*/,
+            /li[a-mo-zA-Z0-9_][a-zA-Z0-9_]*/,
+            /lim[a-np-zA-Z0-9_][a-zA-Z0-9_]*/,
+            /limi[a-s-zA-Z0-9_][a-zA-Z0-9_]*/,
+            /limit[a-qs-zA-Z0-9_][a-zA-Z0-9_]*/,
+            /limits[0-9_][a-zA-Z0-9_]*/,
           ),
         ),
       )),
