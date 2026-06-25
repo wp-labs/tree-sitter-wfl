@@ -8,6 +8,7 @@
   "pattern"
   "rule"
   "test"
+  "scenario"
 ] @keyword
 
 [
@@ -37,6 +38,19 @@
   "input"
   "expect"
   "options"
+  "traffic"
+  "stream"
+  "gen"
+  "injection"
+  "near_miss"
+  "miss"
+  "precision"
+  "recall"
+  "fpr"
+  "latency_p95"
+  "seq"
+  "use"
+  "not"
   "row"
   "tick"
   "hits"
@@ -54,6 +68,7 @@
 [
   "snapshot"
   "asof"
+  "anti"
   "session"
 ] @keyword.modifier
 
@@ -84,6 +99,8 @@
 (string) @string
 (number) @number
 (duration) @number
+(percentage) @number
+(rate) @number
 (version_tag) @constant
 (variable) @variable.special
 (derive_reference) @variable.special
@@ -92,12 +109,19 @@
 (rule_declaration name: (identifier) @function.definition)
 (pattern_declaration name: (identifier) @function.definition)
 (test_block name: (identifier) @function.definition)
+(scenario_declaration name: (identifier) @function.definition)
 (test_block rule: (identifier) @function)
 (pattern_invocation pattern: (identifier) @function)
 
 (event_declaration
   alias: (identifier) @variable
   window: (identifier) @type)
+
+(traffic_stream stream: (identifier) @type)
+(injection_case rule: (identifier) @function)
+(injection_case stream: (identifier) @type)
+(seq_block entity: (identifier) @variable)
+(scenario_expect_statement rule: (identifier) @function)
 
 (each_clause alias: (identifier) @variable)
 (join_clause window: (identifier) @type)
@@ -127,11 +151,15 @@
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "hit"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "contains"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "regex_match"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "startswith"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "endswith"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "len"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "lower"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "upper"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "time_diff"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "time_bucket"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "coalesce"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "mvcount"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "collect_set"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "collect_list"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "first"))
@@ -157,6 +185,8 @@
 (limit_item value: (identifier) @constant)
 (field_assignment field: (identifier) @property)
 (field_assignment field: (string) @property)
+(attribute key: (identifier) @property)
+(field_predicate field: (identifier) @property)
 
 [
   "max_memory"

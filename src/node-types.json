@@ -59,6 +59,78 @@
     }
   },
   {
+    "type": "attribute",
+    "named": true,
+    "fields": {
+      "key": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "attribute_value",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "attribute_list",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "attribute",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "attribute_value",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "duration",
+          "named": true
+        },
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "binary_expression",
     "named": true,
     "fields": {
@@ -126,6 +198,52 @@
     "type": "boolean",
     "named": true,
     "fields": {}
+  },
+  {
+    "type": "burst_rate",
+    "named": true,
+    "fields": {
+      "base": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "rate",
+            "named": true
+          }
+        ]
+      },
+      "every": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "duration",
+            "named": true
+          }
+        ]
+      },
+      "hold": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "duration",
+            "named": true
+          }
+        ]
+      },
+      "peak": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "rate",
+            "named": true
+          }
+        ]
+      }
+    }
   },
   {
     "type": "close_block",
@@ -347,6 +465,11 @@
     }
   },
   {
+    "type": "expect_metric",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "expect_statement",
     "named": true,
     "fields": {},
@@ -432,6 +555,47 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "field_predicate",
+    "named": true,
+    "fields": {
+      "field": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "attribute_value",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "field_predicate_list",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "field_predicate",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -611,6 +775,82 @@
         }
       ]
     }
+  },
+  {
+    "type": "injection_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "injection_case",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "injection_case",
+    "named": true,
+    "fields": {
+      "mode": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "injection_mode",
+            "named": true
+          }
+        ]
+      },
+      "percent": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "percentage",
+            "named": true
+          }
+        ]
+      },
+      "rule": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "stream": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "seq_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "injection_mode",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "input_block",
@@ -1043,6 +1283,10 @@
             "named": true
           },
           {
+            "type": "number",
+            "named": true
+          },
+          {
             "type": "string",
             "named": true
           }
@@ -1256,6 +1500,33 @@
     }
   },
   {
+    "type": "rate_expression",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "burst_rate",
+          "named": true
+        },
+        {
+          "type": "rate",
+          "named": true
+        },
+        {
+          "type": "timeline_rate",
+          "named": true
+        },
+        {
+          "type": "wave_rate",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "rule_declaration",
     "named": true,
     "fields": {
@@ -1329,6 +1600,162 @@
     }
   },
   {
+    "type": "scenario_attribute",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "attribute_list",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "scenario_body_item",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "injection_block",
+          "named": true
+        },
+        {
+          "type": "scenario_expect_block",
+          "named": true
+        },
+        {
+          "type": "traffic_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "scenario_declaration",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "scenario_attribute",
+          "named": true
+        },
+        {
+          "type": "scenario_body_item",
+          "named": true
+        },
+        {
+          "type": "scenario_inline_annotations",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "scenario_expect_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "scenario_expect_statement",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "scenario_expect_statement",
+    "named": true,
+    "fields": {
+      "metric": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expect_metric",
+            "named": true
+          }
+        ]
+      },
+      "rule": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "duration",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "percentage",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "comparison_operator",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "scenario_inline_annotations",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "attribute_list",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "score_call",
     "named": true,
     "fields": {},
@@ -1338,6 +1765,113 @@
       "types": [
         {
           "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "seq_block",
+    "named": true,
+    "fields": {
+      "entity": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "seq_step",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "seq_not_step",
+    "named": true,
+    "fields": {
+      "within": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "duration",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "field_predicate_list",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "seq_step",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "seq_not_step",
+          "named": true
+        },
+        {
+          "type": "seq_use_step",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "seq_use_step",
+    "named": true,
+    "fields": {
+      "count": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "number",
+            "named": true
+          }
+        ]
+      },
+      "within": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "duration",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "field_predicate_list",
           "named": true
         }
       ]
@@ -1398,6 +1932,10 @@
         },
         {
           "type": "rule_declaration",
+          "named": true
+        },
+        {
+          "type": "scenario_declaration",
           "named": true
         },
         {
@@ -1509,6 +2047,98 @@
     }
   },
   {
+    "type": "timeline_rate",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "timeline_segment",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "timeline_segment",
+    "named": true,
+    "fields": {
+      "end": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "duration",
+            "named": true
+          }
+        ]
+      },
+      "rate": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "rate",
+            "named": true
+          }
+        ]
+      },
+      "start": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "duration",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "traffic_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "traffic_stream",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "traffic_stream",
+    "named": true,
+    "fields": {
+      "rate": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "rate_expression",
+            "named": true
+          }
+        ]
+      },
+      "stream": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "unary_expression",
     "named": true,
     "fields": {},
@@ -1536,6 +2166,52 @@
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "wave_rate",
+    "named": true,
+    "fields": {
+      "amp": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "rate",
+            "named": true
+          }
+        ]
+      },
+      "base": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "rate",
+            "named": true
+          }
+        ]
+      },
+      "period": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "duration",
+            "named": true
+          }
+        ]
+      },
+      "shape": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -1626,6 +2302,10 @@
     "named": false
   },
   {
+    "type": "#[",
+    "named": false
+  },
+  {
     "type": "%",
     "named": false
   },
@@ -1663,6 +2343,10 @@
   },
   {
     "type": ".",
+    "named": false
+  },
+  {
+    "type": "..",
     "named": false
   },
   {
@@ -1714,7 +2398,15 @@
     "named": false
   },
   {
+    "type": "amp",
+    "named": false
+  },
+  {
     "type": "and",
+    "named": false
+  },
+  {
+    "type": "anti",
     "named": false
   },
   {
@@ -1723,6 +2415,14 @@
   },
   {
     "type": "avg",
+    "named": false
+  },
+  {
+    "type": "base",
+    "named": false
+  },
+  {
+    "type": "burst",
     "named": false
   },
   {
@@ -1787,6 +2487,10 @@
     "named": false
   },
   {
+    "type": "every",
+    "named": false
+  },
+  {
     "type": "expect",
     "named": false
   },
@@ -1807,11 +2511,23 @@
     "named": false
   },
   {
+    "type": "fpr",
+    "named": false
+  },
+  {
+    "type": "gen",
+    "named": false
+  },
+  {
     "type": "hit",
     "named": false
   },
   {
     "type": "hits",
+    "named": false
+  },
+  {
+    "type": "hold",
     "named": false
   },
   {
@@ -1827,6 +2543,10 @@
     "named": false
   },
   {
+    "type": "injection",
+    "named": false
+  },
+  {
     "type": "input",
     "named": false
   },
@@ -1836,6 +2556,10 @@
   },
   {
     "type": "key",
+    "named": false
+  },
+  {
+    "type": "latency_p95",
     "named": false
   },
   {
@@ -1871,6 +2595,14 @@
     "named": false
   },
   {
+    "type": "miss",
+    "named": false
+  },
+  {
+    "type": "near_miss",
+    "named": false
+  },
+  {
     "type": "not",
     "named": false
   },
@@ -1899,8 +2631,32 @@
     "named": false
   },
   {
+    "type": "peak",
+    "named": false
+  },
+  {
+    "type": "percentage",
+    "named": true
+  },
+  {
+    "type": "period",
+    "named": false
+  },
+  {
+    "type": "precision",
+    "named": false
+  },
+  {
     "type": "quoted_ident",
     "named": true
+  },
+  {
+    "type": "rate",
+    "named": true
+  },
+  {
+    "type": "recall",
+    "named": false
   },
   {
     "type": "row",
@@ -1911,11 +2667,23 @@
     "named": false
   },
   {
+    "type": "scenario",
+    "named": false
+  },
+  {
     "type": "score",
     "named": false
   },
   {
+    "type": "seq",
+    "named": false
+  },
+  {
     "type": "session",
+    "named": false
+  },
+  {
+    "type": "shape",
     "named": false
   },
   {
@@ -1924,6 +2692,10 @@
   },
   {
     "type": "sort",
+    "named": false
+  },
+  {
+    "type": "stream",
     "named": false
   },
   {
@@ -1947,7 +2719,15 @@
     "named": false
   },
   {
+    "type": "timeline",
+    "named": false
+  },
+  {
     "type": "top",
+    "named": false
+  },
+  {
+    "type": "traffic",
     "named": false
   },
   {
@@ -1971,7 +2751,15 @@
     "named": true
   },
   {
+    "type": "wave",
+    "named": false
+  },
+  {
     "type": "where",
+    "named": false
+  },
+  {
+    "type": "with",
     "named": false
   },
   {

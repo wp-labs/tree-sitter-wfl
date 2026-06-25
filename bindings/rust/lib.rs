@@ -129,6 +129,116 @@ rule session_rule {
     }
 
     #[test]
+    fn test_current_wfl_surface_parse() {
+        let pipeline = r#"
+rule repeated_fail_bursts {
+    events { e : auth_events && action == "failed" }
+    match<sip,username:5m:fixed> {
+        on event { e | count >= 1; }
+        and close { burst: e | count >= 3; }
+    }
+    |> match<sip:30m:fixed> {
+        on event { _in | count >= 1; }
+        and close { users: _in.username | distinct | count >= 2; }
+    } -> score(85.0)
+    entity(ip, _in.sip)
+    yield security_alerts (
+        sip = _in.sip,
+        fail_count = 2,
+        message = fmt("{} multi-user fail bursts", _in.sip)
+    )
+}
+"#;
+        let pipeline_tree = parse_ok(pipeline);
+        assert!(pipeline_tree.contains("stage_chain"));
+        assert!(pipeline_tree.contains("non_scoring_stage"));
+        assert!(pipeline_tree.contains("final_stage"));
+
+        let anti_join = r#"
+rule anti_join_rule {
+    meta { contract_version = "1" }
+    events { e : auth_events && startswith(e.action, "fail") }
+    match<e.sip:5m> {
+        key { sip = e.sip; }
+        on event { e.action | distinct | count >= 2; }
+    } -> score(if e.action == "failed" then 90 else 10)
+    join scanner_whitelist anti on e.sip == scanner_whitelist.sip
+    entity(ip, e.sip)
+    yield alerts@v1 (
+        risk = @score,
+        actions = collect_set(e.action),
+        action_count = mvcount(collect_set(e.action))
+    )
+    limits { max_instances = 100; on_exceed = throttle; }
+}
+
+test anti_join_case for anti_join_rule {
+    input {
+        row(e, sip = "10.0.0.1", action = "failed");
+        tick(5m);
+    }
+    expect { hits >= 0; }
+    options {
+        close_trigger = timeout;
+        eval_mode = strict;
+        permutation = shuffle;
+        runs = 20;
+    }
+}
+"#;
+        let anti_tree = parse_ok(anti_join);
+        assert!(anti_tree.contains("join_mode"));
+        assert!(anti_tree.contains("derive_reference"));
+        assert!(anti_tree.contains("options_block"));
+        assert!(anti_tree.contains("option_entry"));
+    }
+
+    #[test]
+    fn test_wfg_scenario_parse() {
+        let scenario = r#"
+use "../schemas/security.wfs"
+use "../rules/brute_force.wfl"
+
+#[duration=10m]
+scenario brute_force_detect<seed=42> {
+    traffic {
+        stream auth_events gen 100/s
+        stream auth_events gen wave(base=80/s, amp=40/s, period=2m, shape=sine)
+    }
+
+    injection {
+        hit<30%> for brute_force_then_scan auth_events {
+            user seq {
+                use(login="failed") with(3)
+                then use(action="port_scan") with(1)
+            }
+        }
+
+        near_miss<10%> auth_events {
+            user seq {
+                use(login="failed") with(2)
+                not(action="port_scan") within(1m)
+            }
+        }
+    }
+
+    expect {
+        hit(brute_force_then_scan) >= 95%
+        precision(brute_force_then_scan) >= 99%
+        latency_p95(brute_force_then_scan) <= 2s
+    }
+}
+"#;
+        let scenario_tree = parse_ok(scenario);
+        assert!(scenario_tree.contains("scenario_declaration"));
+        assert!(scenario_tree.contains("traffic_block"));
+        assert!(scenario_tree.contains("injection_case"));
+        assert!(scenario_tree.contains("seq_use_step"));
+        assert!(scenario_tree.contains("seq_not_step"));
+        assert!(scenario_tree.contains("scenario_expect_statement"));
+    }
+
+    #[test]
     fn test_highlights_query_compiles() {
         Query::new(&super::language(), super::HIGHLIGHTS_QUERY)
             .expect("highlights query should compile");

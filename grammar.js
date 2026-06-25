@@ -26,7 +26,7 @@ module.exports = grammar({
     source_file: ($) =>
       seq(
         repeat($.use_declaration),
-        repeat(choice($.pattern_declaration, $.rule_declaration, $.test_block)),
+        repeat(choice($.pattern_declaration, $.rule_declaration, $.test_block, $.scenario_declaration)),
       ),
 
     comment: (_$) => token(seq("//", /.*/)),
@@ -90,7 +90,7 @@ module.exports = grammar({
         $.final_stage,
         seq(
           $.non_scoring_stage,
-          repeat1(seq("|>", $.non_scoring_stage)),
+          repeat(seq("|>", $.non_scoring_stage)),
           "|>",
           $.final_stage,
         ),
@@ -235,6 +235,7 @@ module.exports = grammar({
       choice(
         "snapshot",
         seq("asof", optional(seq("within", $.duration))),
+        "anti",
       ),
 
     join_condition: ($) =>
@@ -322,6 +323,180 @@ module.exports = grammar({
         "}",
       ),
 
+    scenario_declaration: ($) =>
+      seq(
+        repeat($.scenario_attribute),
+        "scenario",
+        field("name", $.identifier),
+        optional($.scenario_inline_annotations),
+        "{",
+        repeat($.scenario_body_item),
+        "}",
+      ),
+
+    scenario_body_item: ($) =>
+      choice($.traffic_block, $.injection_block, $.scenario_expect_block),
+
+    scenario_attribute: ($) => seq("#[", $.attribute_list, "]"),
+
+    scenario_inline_annotations: ($) => seq("<", $.attribute_list, ">"),
+
+    attribute_list: ($) =>
+      seq($.attribute, repeat(seq(",", $.attribute))),
+
+    attribute: ($) =>
+      seq(field("key", $.identifier), "=", field("value", $.attribute_value)),
+
+    attribute_value: ($) =>
+      choice($.string, $.number, $.duration, $.boolean, $.identifier),
+
+    traffic_block: ($) =>
+      seq("traffic", "{", repeat1($.traffic_stream), "}"),
+
+    traffic_stream: ($) =>
+      seq(
+        "stream",
+        field("stream", $.identifier),
+        "gen",
+        field("rate", $.rate_expression),
+        optional(";"),
+      ),
+
+    rate_expression: ($) =>
+      choice($.rate, $.wave_rate, $.burst_rate, $.timeline_rate),
+
+    wave_rate: ($) =>
+      seq(
+        "wave",
+        "(",
+        "base",
+        "=",
+        field("base", $.rate),
+        ",",
+        "amp",
+        "=",
+        field("amp", $.rate),
+        ",",
+        "period",
+        "=",
+        field("period", $.duration),
+        optional(seq(",", "shape", "=", field("shape", $.identifier))),
+        ")",
+      ),
+
+    burst_rate: ($) =>
+      seq(
+        "burst",
+        "(",
+        "base",
+        "=",
+        field("base", $.rate),
+        ",",
+        "peak",
+        "=",
+        field("peak", $.rate),
+        ",",
+        "every",
+        "=",
+        field("every", $.duration),
+        ",",
+        "hold",
+        "=",
+        field("hold", $.duration),
+        ")",
+      ),
+
+    timeline_rate: ($) =>
+      seq("timeline", "{", repeat1($.timeline_segment), "}"),
+
+    timeline_segment: ($) =>
+      seq(
+        field("start", $.duration),
+        "..",
+        field("end", $.duration),
+        "=",
+        field("rate", $.rate),
+        optional(";"),
+      ),
+
+    injection_block: ($) =>
+      seq("injection", "{", repeat($.injection_case), "}"),
+
+    injection_case: ($) =>
+      seq(
+        field("mode", $.injection_mode),
+        "<",
+        field("percent", $.percentage),
+        ">",
+        optional(seq("for", field("rule", $.identifier))),
+        field("stream", $.identifier),
+        "{",
+        $.seq_block,
+        "}",
+      ),
+
+    injection_mode: (_$) => choice("hit", "near_miss", "miss"),
+
+    seq_block: ($) =>
+      seq(
+        field("entity", $.identifier),
+        "seq",
+        "{",
+        repeat1($.seq_step),
+        "}",
+      ),
+
+    seq_step: ($) => choice($.seq_use_step, $.seq_not_step),
+
+    seq_use_step: ($) =>
+      seq(
+        optional("then"),
+        "use",
+        "(",
+        optional($.field_predicate_list),
+        ")",
+        "with",
+        "(",
+        field("count", $.number),
+        optional(seq(",", field("within", $.duration))),
+        ")",
+      ),
+
+    seq_not_step: ($) =>
+      seq(
+        "not",
+        "(",
+        optional($.field_predicate_list),
+        ")",
+        "within",
+        "(",
+        field("within", $.duration),
+        ")",
+      ),
+
+    field_predicate_list: ($) =>
+      seq($.field_predicate, repeat(seq(",", $.field_predicate))),
+
+    field_predicate: ($) =>
+      seq(field("field", $.identifier), "=", field("value", $.attribute_value)),
+
+    scenario_expect_block: ($) =>
+      seq("expect", "{", repeat($.scenario_expect_statement), "}"),
+
+    scenario_expect_statement: ($) =>
+      seq(
+        field("metric", $.expect_metric),
+        "(",
+        field("rule", $.identifier),
+        ")",
+        $.comparison_operator,
+        field("value", choice($.percentage, $.duration, $.number)),
+        optional(";"),
+      ),
+
+    expect_metric: (_$) =>
+      choice("hit", "near_miss", "miss", "precision", "recall", "fpr", "latency_p95"),
+
     input_block: ($) =>
       seq("input", "{", repeat($.input_statement), "}"),
 
@@ -380,7 +555,7 @@ module.exports = grammar({
       seq(
         field("key", $.identifier),
         "=",
-        field("value", choice($.identifier, $.string)),
+        field("value", choice($.identifier, $.string, $.number)),
         ";",
       ),
 
@@ -557,6 +732,10 @@ module.exports = grammar({
     comparison_operator: (_$) =>
       choice("==", "!=", "<", ">", "<=", ">="),
 
+    percentage: (_$) => token(/\d+(\.\d+)?%/),
+
+    rate: (_$) => token(/\d+(\.\d+)?\/[smh]/),
+
     number: (_$) => token(/\d+(\.\d+)?/),
 
     string: (_$) =>
@@ -566,19 +745,6 @@ module.exports = grammar({
 
     duration: (_$) => token(/\d+(ms|[smhd])/),
 
-    identifier: (_$) =>
-      token(choice(
-        seq(
-          choice(
-            /[a-mo-zA-Z_][a-zA-Z0-9_]*/,
-            /l[a-tv-zA-Z_][a-zA-Z0-9_]*/,
-            /li[a-mo-zA-Z0-9_][a-zA-Z0-9_]*/,
-            /lim[a-np-zA-Z0-9_][a-zA-Z0-9_]*/,
-            /limi[a-s-zA-Z0-9_][a-zA-Z0-9_]*/,
-            /limit[a-qs-zA-Z0-9_][a-zA-Z0-9_]*/,
-            /limits[0-9_][a-zA-Z0-9_]*/,
-          ),
-        ),
-      )),
+    identifier: (_$) => token(/[a-zA-Z_][a-zA-Z0-9_]*/),
   },
 });

@@ -37,7 +37,8 @@
     {
       "scope": "source.wfl",
       "file-types": [
-        "wfl"
+        "wfl",
+        "wfg"
       ],
       "highlights": "queries/highlights.scm"
     }

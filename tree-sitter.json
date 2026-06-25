@@ -5,7 +5,7 @@
       "camelcase": "Wfl",
       "scope": "source.wfl",
       "path": ".",
-      "file-types": ["wfl"],
+      "file-types": ["wfl", "wfg"],
       "highlights": "queries/highlights.scm"
     }
   ],

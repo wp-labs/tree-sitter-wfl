@@ -1,0 +1,136 @@
+==================
+Scenario Traffic Injection Expect
+==================
+
+use "../schemas/security.wfs"
+use "../rules/brute_force.wfl"
+
+#[duration=10m]
+scenario brute_force_detect<seed=42> {
+  traffic {
+    stream auth_events gen 100/s
+    stream auth_events gen wave(base=80/s, amp=40/s, period=2m, shape=sine)
+  }
+
+  injection {
+    hit<30%> for brute_force_then_scan auth_events {
+      user seq {
+        use(login="failed") with(3)
+        then use(action="port_scan") with(1)
+      }
+    }
+
+    near_miss<10%> auth_events {
+      user seq {
+        use(login="failed") with(2)
+        not(action="port_scan") within(1m)
+      }
+    }
+  }
+
+  expect {
+    hit(brute_force_then_scan) >= 95%
+    precision(brute_force_then_scan) >= 99%
+    latency_p95(brute_force_then_scan) <= 2s
+  }
+}
+
+---
+
+(source_file
+  (use_declaration
+    (string))
+  (use_declaration
+    (string))
+  (scenario_declaration
+    (scenario_attribute
+      (attribute_list
+        (attribute
+          (identifier)
+          (attribute_value
+            (duration)))))
+    (identifier)
+    (scenario_inline_annotations
+      (attribute_list
+        (attribute
+          (identifier)
+          (attribute_value
+            (number)))))
+    (scenario_body_item
+      (traffic_block
+        (traffic_stream
+          (identifier)
+          (rate_expression
+            (rate)))
+        (traffic_stream
+          (identifier)
+          (rate_expression
+            (wave_rate
+              (rate)
+              (rate)
+              (duration)
+              (identifier))))))
+    (scenario_body_item
+      (injection_block
+        (injection_case
+          (injection_mode)
+          (percentage)
+          (identifier)
+          (identifier)
+          (seq_block
+            (identifier)
+            (seq_step
+              (seq_use_step
+                (field_predicate_list
+                  (field_predicate
+                    (identifier)
+                    (attribute_value
+                      (string))))
+                (number)))
+            (seq_step
+              (seq_use_step
+                (field_predicate_list
+                  (field_predicate
+                    (identifier)
+                    (attribute_value
+                      (string))))
+                (number)))))
+        (injection_case
+          (injection_mode)
+          (percentage)
+          (identifier)
+          (seq_block
+            (identifier)
+            (seq_step
+              (seq_use_step
+                (field_predicate_list
+                  (field_predicate
+                    (identifier)
+                    (attribute_value
+                      (string))))
+                (number)))
+            (seq_step
+              (seq_not_step
+                (field_predicate_list
+                  (field_predicate
+                    (identifier)
+                    (attribute_value
+                      (string))))
+                (duration)))))))
+    (scenario_body_item
+      (scenario_expect_block
+        (scenario_expect_statement
+          (expect_metric)
+          (identifier)
+          (comparison_operator)
+          (percentage))
+        (scenario_expect_statement
+          (expect_metric)
+          (identifier)
+          (comparison_operator)
+          (percentage))
+        (scenario_expect_statement
+          (expect_metric)
+          (identifier)
+          (comparison_operator)
+          (duration))))))

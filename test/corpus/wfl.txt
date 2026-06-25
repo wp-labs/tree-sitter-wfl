@@ -1,0 +1,340 @@
+==================
+Anti Join And Test Options
+==================
+
+rule anti_join_rule {
+  events { e : auth_events && startswith(e.action, "fail") }
+  match<e.sip:5m> {
+    on event { e.action | distinct | count >= 2; }
+  } -> score(if e.action == "failed" then 90 else 10)
+  join scanner_whitelist anti on e.sip == scanner_whitelist.sip
+  entity(ip, e.sip)
+  yield alerts@v1 (
+    risk = @score,
+    actions = collect_set(e.action),
+    action_count = mvcount(collect_set(e.action))
+  )
+  limits { max_instances = 100; on_exceed = throttle; }
+}
+
+test anti_join_case for anti_join_rule {
+  input {
+    row(e, sip = "10.0.0.1", action = "failed");
+    tick(5m);
+  }
+  expect { hits >= 0; }
+  options {
+    close_trigger = timeout;
+    eval_mode = strict;
+    permutation = shuffle;
+    runs = 20;
+  }
+}
+
+---
+
+(source_file
+  (rule_declaration
+    (identifier)
+    (events_block
+      (event_declaration
+        (identifier)
+        (identifier)
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier))))
+              (expression
+                (primary
+                  (string))))))))
+    (rule_flow
+      (stage_chain
+        (final_stage
+          (match_clause
+            (match_params
+              (field_reference
+                (identifier)
+                (identifier))
+              (window_spec
+                (duration)))
+            (on_event_block
+              (match_step
+                (step_branch
+                  (source_expression
+                    (identifier)
+                    (identifier))
+                  (pipe_chain
+                    (transform)
+                    (measure)
+                    (comparison_operator)
+                    (primary
+                      (number)))))))
+          (score_call
+            (expression
+              (if_expression
+                (expression
+                  (binary_expression
+                    (expression
+                      (primary
+                        (field_reference
+                          (identifier)
+                          (identifier))))
+                    (comparison_operator)
+                    (expression
+                      (primary
+                        (string)))))
+                (expression
+                  (primary
+                    (number)))
+                (expression
+                  (primary
+                    (number))))))
+          (join_clause
+            (identifier)
+            (join_mode)
+            (join_condition
+              (field_reference
+                (identifier)
+                (identifier))
+              (field_reference
+                (identifier)
+                (identifier)))))))
+    (entity_clause
+      (identifier)
+      (expression
+        (primary
+          (field_reference
+            (identifier)
+            (identifier)))))
+    (yield_clause
+      (yield_target
+        (identifier)
+        (version_tag))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (derive_reference))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier))))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (function_call
+                    (identifier)
+                    (expression
+                      (primary
+                        (field_reference
+                          (identifier)
+                          (identifier))))))))))))
+    (limits_clause
+      (limit_item
+        (number))
+      (limit_item
+        (identifier))))
+  (test_block
+    (identifier)
+    (identifier)
+    (input_block
+      (input_statement
+        (identifier)
+        (field_assignment
+          (identifier)
+          (expression
+            (primary
+              (string))))
+        (field_assignment
+          (identifier)
+          (expression
+            (primary
+              (string)))))
+      (input_statement
+        (duration)))
+    (expect_block
+      (expect_statement
+        (comparison_operator)
+        (number)))
+    (options_block
+      (option_entry
+        (identifier)
+        (identifier))
+      (option_entry
+        (identifier)
+        (identifier))
+      (option_entry
+        (identifier)
+        (identifier))
+      (option_entry
+        (identifier)
+        (number)))))
+
+==================
+Two Stage Pipeline
+==================
+
+rule repeated_fail_bursts {
+  events { e : auth_events && action == "failed" }
+  match<sip,username:5m:fixed> {
+    on event { e | count >= 1; }
+    and close { burst: e | count >= 3; }
+  }
+  |> match<sip:30m:fixed> {
+    on event { _in | count >= 1; }
+    and close { users: _in.username | distinct | count >= 2; }
+  } -> score(85.0)
+  entity(ip, _in.sip)
+  yield security_alerts (
+    sip = _in.sip,
+    fail_count = 2,
+    message = fmt("{} multi-user fail bursts", _in.sip)
+  )
+}
+
+---
+
+(source_file
+  (rule_declaration
+    (identifier)
+    (events_block
+      (event_declaration
+        (identifier)
+        (identifier)
+        (expression
+          (binary_expression
+            (expression
+              (primary
+                (field_reference
+                  (identifier))))
+            (comparison_operator)
+            (expression
+              (primary
+                (string)))))))
+    (rule_flow
+      (stage_chain
+        (non_scoring_stage
+          (match_clause
+            (match_params
+              (field_reference
+                (identifier))
+              (field_reference
+                (identifier))
+              (window_spec
+                (duration)))
+            (on_event_block
+              (match_step
+                (step_branch
+                  (source_expression
+                    (identifier))
+                  (pipe_chain
+                    (measure)
+                    (comparison_operator)
+                    (primary
+                      (number))))))
+            (close_block
+              (and_close_block
+                (match_step
+                  (step_branch
+                    (identifier)
+                    (source_expression
+                      (identifier))
+                    (pipe_chain
+                      (measure)
+                      (comparison_operator)
+                      (primary
+                        (number)))))))))
+        (final_stage
+          (match_clause
+            (match_params
+              (field_reference
+                (identifier))
+              (window_spec
+                (duration)))
+            (on_event_block
+              (match_step
+                (step_branch
+                  (source_expression
+                    (identifier))
+                  (pipe_chain
+                    (measure)
+                    (comparison_operator)
+                    (primary
+                      (number))))))
+            (close_block
+              (and_close_block
+                (match_step
+                  (step_branch
+                    (identifier)
+                    (source_expression
+                      (identifier)
+                      (identifier))
+                    (pipe_chain
+                      (transform)
+                      (measure)
+                      (comparison_operator)
+                      (primary
+                        (number))))))))
+          (score_call
+            (expression
+              (primary
+                (number)))))))
+    (entity_clause
+      (identifier)
+      (expression
+        (primary
+          (field_reference
+            (identifier)
+            (identifier)))))
+    (yield_clause
+      (yield_target
+        (identifier))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (field_reference
+              (identifier)
+              (identifier)))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (number))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (string)))
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier)))))))))))
