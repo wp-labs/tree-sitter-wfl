@@ -338,3 +338,357 @@ rule repeated_fail_bursts {
                   (field_reference
                     (identifier)
                     (identifier)))))))))))
+
+==================
+Function Helpers
+==================
+
+rule helper_functions {
+  events { e : auth_events && isnotnull(e.user) }
+  on each e where is_blank(e.user) || contains(lower(e.action), "fail") -> score(round(clamp(70.5, 0, 100), 1))
+  entity(ip, e.sip)
+  yield alerts (
+    created_time = now(),
+    created_s = now_s(),
+    created_ms = now_ms(),
+    created_us = now_us(),
+    created_ns = now_ns(),
+    created_day = strftime(now(), "%Y-%m-%d"),
+    normalized_user = default_if_blank(e.user, "unknown"),
+    src = coalesce(null_if_blank(e.src), e.sip),
+    missing = isnull(e.missing),
+    action_md5 = md5(e.action),
+    action_sha1 = sha1(e.action),
+    action_sha256 = sha256(e.action),
+    raw_hex = hex(e.raw),
+    stable = stable_id("alert_", e.sip, e.user, e.event_time),
+    parts = mvsort(mvdedup(split(trim(e.tags), ","))),
+    joined = mvjoin(mvappend(e.sip, e.user), "|"),
+    first_part = mvindex(split(e.tags, ","), 0)
+  )
+}
+
+---
+
+(source_file
+  (rule_declaration
+    (identifier)
+    (events_block
+      (event_declaration
+        (identifier)
+        (identifier)
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier)))))))))
+    (rule_flow
+      (stage_chain
+        (final_stage
+          (each_clause
+            (identifier)
+            (expression
+              (binary_expression
+                (expression
+                  (primary
+                    (function_call
+                      (identifier)
+                      (expression
+                        (primary
+                          (field_reference
+                            (identifier)
+                            (identifier)))))))
+                (expression
+                  (primary
+                    (function_call
+                      (identifier)
+                      (expression
+                        (primary
+                          (function_call
+                            (identifier)
+                            (expression
+                              (primary
+                                (field_reference
+                                  (identifier)
+                                  (identifier)))))))
+                      (expression
+                        (primary
+                          (string)))))))))
+          (score_call
+            (expression
+              (primary
+                (function_call
+                  (identifier)
+                  (expression
+                    (primary
+                      (function_call
+                        (identifier)
+                        (expression
+                          (primary
+                            (number)))
+                        (expression
+                          (primary
+                            (number)))
+                        (expression
+                          (primary
+                            (number))))))
+                  (expression
+                    (primary
+                      (number))))))))))
+    (entity_clause
+      (identifier)
+      (expression
+        (primary
+          (field_reference
+            (identifier)
+            (identifier)))))
+    (yield_clause
+      (yield_target
+        (identifier))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (function_call
+                    (identifier))))
+              (expression
+                (primary
+                  (string)))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier))))
+              (expression
+                (primary
+                  (string)))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (function_call
+                    (identifier)
+                    (expression
+                      (primary
+                        (field_reference
+                          (identifier)
+                          (identifier)))))))
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier))))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier))))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier))))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier))))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier))))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier))))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (string)))
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier))))
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier))))
+              (expression
+                (primary
+                  (field_reference
+                    (identifier)
+                    (identifier))))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (function_call
+                    (identifier)
+                    (expression
+                      (primary
+                        (function_call
+                          (identifier)
+                          (expression
+                            (primary
+                              (function_call
+                                (identifier)
+                                (expression
+                                  (primary
+                                    (field_reference
+                                      (identifier)
+                                      (identifier)))))))
+                          (expression
+                            (primary
+                              (string)))))))))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (function_call
+                    (identifier)
+                    (expression
+                      (primary
+                        (field_reference
+                          (identifier)
+                          (identifier))))
+                    (expression
+                      (primary
+                        (field_reference
+                          (identifier)
+                          (identifier)))))))
+              (expression
+                (primary
+                  (string)))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (function_call
+              (identifier)
+              (expression
+                (primary
+                  (function_call
+                    (identifier)
+                    (expression
+                      (primary
+                        (field_reference
+                          (identifier)
+                          (identifier))))
+                    (expression
+                      (primary
+                        (string))))))
+              (expression
+                (primary
+                  (number))))))))))
