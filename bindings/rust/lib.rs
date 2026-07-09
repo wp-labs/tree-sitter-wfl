@@ -1,7 +1,14 @@
-//! This crate provides Wfl language support for the [tree-sitter][] parsing library.
+//! This crate provides WFL, WFG, and WFS language support for the
+//! [tree-sitter][] parsing library.
 //!
-//! Typically, you will use the [language][language func] function to add this language to a
-//! tree-sitter [Parser][], and then use the parser to parse some code:
+//! The default [language][language func] and [format][format func] exports target WFL.
+//! Use the explicit `*_wfg` and `*_wfs` variants for the sibling grammars, and
+//! `language_wfl` / `format_wfl` when you want the WFL choice to be explicit at
+//! the call site.
+//!
+//! Typically, you will use the [language][language func] function to add this
+//! language to a tree-sitter [Parser][], and then use the parser to parse some
+//! code:
 //!
 //! ```
 //! let code = r#"
@@ -14,6 +21,7 @@
 //!
 //! [Language]: https://docs.rs/tree-sitter/*/tree_sitter/struct.Language.html
 //! [language func]: fn.language.html
+//! [format func]: fn.format.html
 //! [Parser]: https://docs.rs/tree-sitter/*/tree_sitter/struct.Parser.html
 //! [tree-sitter]: https://tree-sitter.github.io/
 
@@ -35,10 +43,17 @@ pub fn language() -> Language {
     unsafe { tree_sitter_wfl() }
 }
 
+/// Get the tree-sitter [Language][] for the WFL grammar.
+pub fn language_wfl() -> Language {
+    language()
+}
+
+/// Get the tree-sitter [Language][] for the WFG grammar.
 pub fn language_wfg() -> Language {
     unsafe { tree_sitter_wfg() }
 }
 
+/// Get the tree-sitter [Language][] for the WFS grammar.
 pub fn language_wfs() -> Language {
     unsafe { tree_sitter_wfs() }
 }
@@ -70,6 +85,11 @@ pub const WFS_EDITOR_ASSET_MANIFEST: &str = include_str!("../../editor/wfs/asset
 // pub const TAGS_QUERY: &str = include_str!("../../queries/tags.scm");
 
 pub use format::{format, format_or_original, format_with_indent, WflFormatError, WflFormatter};
+pub use format::{
+    format as format_wfl,
+    format_or_original as format_wfl_or_original,
+    format_with_indent as format_wfl_with_indent,
+};
 pub use format::wfg::{
     format as format_wfg,
     format_or_original as format_wfg_or_original,

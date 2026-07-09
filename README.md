@@ -330,6 +330,19 @@ let tree = parser.parse(source, None).unwrap();
 println!("{}", tree.root_node().to_sexp());
 ```
 
+For the three Rust entry points:
+
+- `tree_sitter_wfl::language()` and `tree_sitter_wfl::format()` target WFL by default.
+- `tree_sitter_wfl::language_wfl()` and `tree_sitter_wfl::format_wfl()` are explicit WFL aliases.
+- `tree_sitter_wfl::language_wfg()` / `tree_sitter_wfl::format_wfg()` target WFG.
+- `tree_sitter_wfl::language_wfs()` / `tree_sitter_wfl::format_wfs()` target WFS.
+
+```rust
+let wfl = tree_sitter_wfl::format_wfl("rule demo { yield(x = 1)}")?;
+let wfg = tree_sitter_wfl::format_wfg("scenario demo { given { x = 1 }}")?;
+let wfs = tree_sitter_wfl::format_wfs("schema demo { field ip: string }")?;
+```
+
 ### Node.js
 
 ```javascript
