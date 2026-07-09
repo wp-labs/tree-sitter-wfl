@@ -19,8 +19,13 @@
 
 use tree_sitter::Language;
 
+#[path = "../../src/format/mod.rs"]
+mod format;
+
 extern "C" {
     fn tree_sitter_wfl() -> Language;
+    fn tree_sitter_wfg() -> Language;
+    fn tree_sitter_wfs() -> Language;
 }
 
 /// Get the tree-sitter [Language][] for this grammar.
@@ -30,26 +35,64 @@ pub fn language() -> Language {
     unsafe { tree_sitter_wfl() }
 }
 
+pub fn language_wfg() -> Language {
+    unsafe { tree_sitter_wfg() }
+}
+
+pub fn language_wfs() -> Language {
+    unsafe { tree_sitter_wfs() }
+}
+
 /// The content of the [`node-types.json`][] file for this grammar.
 ///
 /// [`node-types.json`]: https://tree-sitter.github.io/tree-sitter/using-parsers#static-node-types
 pub const NODE_TYPES: &str = include_str!("../../src/node-types.json");
-
-// Uncomment these to include any queries that this grammar contains
+pub const WFL_NODE_TYPES: &str = NODE_TYPES;
+pub const WFG_NODE_TYPES: &str = include_str!("../../src/parsers/wfg/node-types.json");
+pub const WFS_NODE_TYPES: &str = include_str!("../../src/parsers/wfs/node-types.json");
 
 pub const HIGHLIGHTS_QUERY: &str = include_str!("../../queries/highlights.scm");
+pub const WFL_HIGHLIGHTS_QUERY: &str = HIGHLIGHTS_QUERY;
+pub const WFG_HIGHLIGHTS_QUERY: &str = include_str!("../../queries/wfg/highlights.scm");
+pub const WFS_HIGHLIGHTS_QUERY: &str = include_str!("../../queries/wfs/highlights.scm");
+
+pub const COMPLETION_BUNDLE: &str = include_str!("../../completions/wfl/completion.bundle.json");
+pub const WFL_COMPLETION_BUNDLE: &str = COMPLETION_BUNDLE;
+pub const WFG_COMPLETION_BUNDLE: &str = include_str!("../../completions/wfg/completion.bundle.json");
+pub const WFS_COMPLETION_BUNDLE: &str = include_str!("../../completions/wfs/completion.bundle.json");
+
+pub const EDITOR_ASSET_MANIFEST: &str = include_str!("../../editor/asset-manifest.json");
+pub const WFL_EDITOR_ASSET_MANIFEST: &str = EDITOR_ASSET_MANIFEST;
+pub const WFG_EDITOR_ASSET_MANIFEST: &str = include_str!("../../editor/wfg/asset-manifest.json");
+pub const WFS_EDITOR_ASSET_MANIFEST: &str = include_str!("../../editor/wfs/asset-manifest.json");
 // pub const INJECTIONS_QUERY: &str = include_str!("../../queries/injections.scm");
 // pub const LOCALS_QUERY: &str = include_str!("../../queries/locals.scm");
 // pub const TAGS_QUERY: &str = include_str!("../../queries/tags.scm");
 
+pub use format::{format, format_or_original, format_with_indent, WflFormatError, WflFormatter};
+pub use format::wfg::{
+    format as format_wfg,
+    format_or_original as format_wfg_or_original,
+    format_with_indent as format_wfg_with_indent,
+    WfgFormatError,
+    WfgFormatter,
+};
+pub use format::wfs::{
+    format as format_wfs,
+    format_or_original as format_wfs_or_original,
+    format_with_indent as format_wfs_with_indent,
+    WfsFormatError,
+    WfsFormatter,
+};
+
 #[cfg(test)]
 mod tests {
-    use tree_sitter::{Parser, Query};
+    use tree_sitter::{Language, Parser, Query};
 
-    fn parse_ok(source: &str) -> String {
+    fn parse_ok_with(language: Language, source: &str) -> String {
         let mut parser = Parser::new();
         parser
-            .set_language(&super::language())
+            .set_language(&language)
             .expect("Error loading Wfl grammar");
         let tree = parser.parse(source, None).expect("tree should be produced");
         let root = tree.root_node();
@@ -61,12 +104,60 @@ mod tests {
         root.to_sexp()
     }
 
+    fn parse_ok(source: &str) -> String {
+        parse_ok_with(super::language(), source)
+    }
+
     #[test]
-    fn test_can_load_grammar() {
+    fn test_can_load_grammars() {
         let mut parser = Parser::new();
         parser
             .set_language(&super::language())
             .expect("Error loading Wfl grammar");
+        parser
+            .set_language(&super::language_wfg())
+            .expect("Error loading Wfg grammar");
+        parser
+            .set_language(&super::language_wfs())
+            .expect("Error loading Wfs grammar");
+    }
+
+    #[test]
+    fn test_highlights_queries_compile() {
+        Query::new(&super::language(), super::WFL_HIGHLIGHTS_QUERY)
+            .expect("wfl highlights query should compile");
+        Query::new(&super::language_wfg(), super::WFG_HIGHLIGHTS_QUERY)
+            .expect("wfg highlights query should compile");
+        Query::new(&super::language_wfs(), super::WFS_HIGHLIGHTS_QUERY)
+            .expect("wfs highlights query should compile");
+    }
+
+    #[test]
+    fn test_editor_manifests_exported() {
+        assert!(super::WFL_EDITOR_ASSET_MANIFEST.contains("\"language_id\": \"wfl\""));
+        assert!(super::WFL_EDITOR_ASSET_MANIFEST.contains("\"file_extensions\": [\"wfl\"]"));
+        assert!(super::WFL_EDITOR_ASSET_MANIFEST.contains("\"parser_wasm\": \"editor/wasm/tree-sitter-wfl.wasm\""));
+        assert!(super::WFL_EDITOR_ASSET_MANIFEST.contains("\"highlights_query\": \"queries/wfl/highlights.scm\""));
+        assert!(super::WFL_EDITOR_ASSET_MANIFEST.contains("\"completion_bundle\": \"completions/wfl/completion.bundle.json\""));
+
+        assert!(super::WFG_EDITOR_ASSET_MANIFEST.contains("\"language_id\": \"wfg\""));
+        assert!(super::WFG_EDITOR_ASSET_MANIFEST.contains("\"file_extensions\": [\"wfg\"]"));
+        assert!(super::WFG_EDITOR_ASSET_MANIFEST.contains("\"parser_wasm\": \"editor/wasm/tree-sitter-wfg.wasm\""));
+        assert!(super::WFG_EDITOR_ASSET_MANIFEST.contains("\"highlights_query\": \"queries/wfg/highlights.scm\""));
+        assert!(super::WFG_EDITOR_ASSET_MANIFEST.contains("\"completion_bundle\": \"completions/wfg/completion.bundle.json\""));
+
+        assert!(super::WFS_EDITOR_ASSET_MANIFEST.contains("\"language_id\": \"wfs\""));
+        assert!(super::WFS_EDITOR_ASSET_MANIFEST.contains("\"file_extensions\": [\"wfs\"]"));
+        assert!(super::WFS_EDITOR_ASSET_MANIFEST.contains("\"parser_wasm\": \"editor/wasm/tree-sitter-wfs.wasm\""));
+        assert!(super::WFS_EDITOR_ASSET_MANIFEST.contains("\"highlights_query\": \"queries/wfs/highlights.scm\""));
+        assert!(super::WFS_EDITOR_ASSET_MANIFEST.contains("\"completion_bundle\": \"completions/wfs/completion.bundle.json\""));
+    }
+
+    #[test]
+    fn test_completion_bundles_exported() {
+        assert!(super::WFL_COMPLETION_BUNDLE.contains("\"language\": \"wfl\""));
+        assert!(super::WFG_COMPLETION_BUNDLE.contains("\"language\": \"wfg\""));
+        assert!(super::WFS_COMPLETION_BUNDLE.contains("\"language\": \"wfs\""));
     }
 
     #[test]
@@ -207,40 +298,58 @@ scenario brute_force_detect<seed=42> {
     }
 
     injection {
-        hit<30%> for brute_force_then_scan auth_events {
+        hit<30%> auth_events {
             user seq {
-                use(login="failed") with(3)
-                then use(action="port_scan") with(1)
+                use(login="failed") with(3, 1m)
+                use(action="port_scan") with(1, 1m)
             }
         }
 
         near_miss<10%> auth_events {
             user seq {
-                use(login="failed") with(2)
-                not(action="port_scan") within(1m)
+                use(login="failed") with(2, 1m)
             }
         }
     }
 
     expect {
-        hit(brute_force_then_scan) >= 95%
-        precision(brute_force_then_scan) >= 99%
-        latency_p95(brute_force_then_scan) <= 2s
+        hit(brute_force_detect) >= 95%
+        near_miss(brute_force_detect) <= 10%
+        miss(brute_force_detect) <= 1%
     }
 }
 "#;
-        let scenario_tree = parse_ok(scenario);
+        let scenario_tree = parse_ok_with(super::language_wfg(), scenario);
         assert!(scenario_tree.contains("scenario_declaration"));
         assert!(scenario_tree.contains("traffic_block"));
         assert!(scenario_tree.contains("injection_case"));
-        assert!(scenario_tree.contains("seq_use_step"));
-        assert!(scenario_tree.contains("seq_not_step"));
-        assert!(scenario_tree.contains("scenario_expect_statement"));
+        assert!(scenario_tree.contains("sequence_block"));
+        assert!(scenario_tree.contains("use_statement"));
+        assert!(scenario_tree.contains("expect_statement"));
     }
 
     #[test]
-    fn test_highlights_query_compiles() {
-        Query::new(&super::language(), super::HIGHLIGHTS_QUERY)
-            .expect("highlights query should compile");
+    fn test_wfs_window_parse() {
+        let schema = r#"
+window auth_events {
+    stream = ["auth/login", "auth/logout"]
+    time = event_time
+    over = 5m
+    fields {
+        sip: ip
+        user.name: chars
+        `event-type`: chars
+        labels: array/chars
+        success: bool
     }
+}
+"#;
+        let schema_tree = parse_ok_with(super::language_wfs(), schema);
+        assert!(schema_tree.contains("window_declaration"));
+        assert!(schema_tree.contains("stream_attribute"));
+        assert!(schema_tree.contains("fields_block"));
+        assert!(schema_tree.contains("field_declaration"));
+        assert!(schema_tree.contains("array_type"));
+    }
+
 }

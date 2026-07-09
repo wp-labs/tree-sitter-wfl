@@ -14,7 +14,10 @@
     "binding.gyp",
     "prebuilds/**",
     "bindings/node/*",
-    "queries/*",
+    "completions/**",
+    "editor/**",
+    "queries/**",
+    "scripts/*",
     "src/**"
   ],
   "dependencies": {
@@ -37,14 +40,28 @@
     {
       "scope": "source.wfl",
       "file-types": [
-        "wfl",
-        "wfg"
+        "wfl"
       ],
       "highlights": "queries/highlights.scm"
+    },
+    {
+      "scope": "source.wfg",
+      "file-types": [
+        "wfg"
+      ],
+      "highlights": "queries/wfg/highlights.scm"
+    },
+    {
+      "scope": "source.wfs",
+      "file-types": [
+        "wfs"
+      ],
+      "highlights": "queries/wfs/highlights.scm"
     }
   ],
   "scripts": {
     "install": "node-gyp-build",
-    "prebuildify": "prebuildify --napi --strip"
+    "prebuildify": "prebuildify --napi --strip",
+    "build:wasm": "node scripts/build-wasm.mjs"
   }
 }
