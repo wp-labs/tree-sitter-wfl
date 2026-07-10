@@ -372,4 +372,59 @@ window auth_events {
         assert!(schema_tree.contains("array_type"));
     }
 
+    #[test]
+    fn test_structured_wfs_surface_parse() {
+        let schema = r#"
+window security_alerts {
+    fields {
+        risk_context: object
+        tags: array
+        scores: array/float
+        ports: array/digit
+    }
+}
+"#;
+        let schema_tree = parse_ok_with(super::language_wfs(), schema);
+        assert!(schema_tree.contains("object_type"));
+        assert!(schema_tree.contains("array_type"));
+    }
+
+    #[test]
+    fn test_structured_wfl_surface_parse() {
+        let source = r#"
+window security_alerts {
+    fields {
+        risk_context: object
+        tags: array
+        scores: array/float
+        ports: array/digit
+    }
+}
+
+rule structured_output {
+    events { e : auth_events }
+    match<e.sip:5m> {
+        on event { e | count >= 1; }
+    } -> score(50.0)
+    entity(ip, e.sip)
+    yield security_alerts (
+        risk_context = object {
+            score: float = @score;
+            tags: array = array ["bruteforce", e.action];
+            ports: array/digit = array [22, 2222,];
+            geo: object = object { country = e.country };
+        },
+        tags = array [],
+        scores = array [@score, 1.5, 1],
+        ports = array [22, 2222,]
+    )
+}
+"#;
+        let source_tree = parse_ok_with(super::language_wfl(), source);
+        assert!(source_tree.contains("object_expression"));
+        assert!(source_tree.contains("array_expression"));
+        assert!(source_tree.contains("object_type"));
+        assert!(source_tree.contains("array_type"));
+    }
+
 }

@@ -5,7 +5,7 @@
     "fields": {},
     "children": {
       "multiple": false,
-      "required": true,
+      "required": false,
       "types": [
         {
           "type": "base_type",
@@ -97,6 +97,10 @@
         },
         {
           "type": "base_type",
+          "named": true
+        },
+        {
+          "type": "object_type",
           "named": true
         }
       ]
@@ -326,6 +330,10 @@
   {
     "type": "ip",
     "named": false
+  },
+  {
+    "type": "object_type",
+    "named": true
   },
   {
     "type": "over",

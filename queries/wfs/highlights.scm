@@ -23,6 +23,8 @@
   "hex"
 ] @type.builtin
 
+(object_type) @type.builtin
+
 (window_declaration name: (identifier) @function.definition)
 (field_declaration name: (_) @property)
 (field_declaration type: (_) @type)

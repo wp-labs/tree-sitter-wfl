@@ -85,9 +85,11 @@ module.exports = grammar({
       token(seq("`", /[^`]+/, "`")),
 
     field_type: ($) =>
-      choice($.array_type, $.base_type),
+      choice($.array_type, $.object_type, $.base_type),
 
-    array_type: ($) => seq("array", "/", $.base_type),
+    array_type: ($) => seq("array", optional(seq("/", $.base_type))),
+
+    object_type: (_$) => "object",
 
     base_type: (_$) =>
       choice("chars", "digit", "float", "bool", "time", "ip", "hex"),
@@ -716,6 +718,8 @@ module.exports = grammar({
         $.variable,
         $.derive_reference,
         $.close_reason_ref,
+        $.object_expression,
+        $.array_expression,
         $.function_call,
         $.aggregate_pipe_expression,
         $.field_reference,
@@ -723,6 +727,29 @@ module.exports = grammar({
       ),
 
     parenthesized_expression: ($) => seq("(", $.expression, ")"),
+
+    object_expression: ($) =>
+      seq("object", "{", repeat($.object_item), "}"),
+
+    object_item: ($) =>
+      seq(
+        field("target", $.object_targets),
+        optional(seq(":", field("type", $.field_type))),
+        "=",
+        field("value", $.expression),
+        optional(";"),
+      ),
+
+    object_targets: ($) =>
+      seq($.identifier, repeat(seq(",", $.identifier))),
+
+    array_expression: ($) =>
+      seq(
+        "array",
+        "[",
+        optional(seq($.expression, repeat(seq(",", $.expression)), optional(","))),
+        "]",
+      ),
 
     field_reference: ($) =>
       choice(

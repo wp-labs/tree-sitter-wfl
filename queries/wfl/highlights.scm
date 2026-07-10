@@ -58,6 +58,8 @@
   "origin"
   "fixed"
   "within"
+  "object"
+  "array"
 ] @keyword
 
 [
@@ -224,6 +226,7 @@
 
 (named_argument name: (yield_field (identifier) @property))
 (named_argument name: (yield_field (quoted_ident) @property))
+(object_item target: (object_targets (identifier) @property))
 (meta_entry key: (identifier) @property)
 (key_item logical: (identifier) @property)
 (option_entry key: (identifier) @property)

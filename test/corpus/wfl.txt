@@ -692,3 +692,232 @@ rule helper_functions {
               (expression
                 (primary
                   (number))))))))))
+
+==================
+Structured Yield Values
+==================
+
+window security_alerts {
+  fields {
+    risk_context: object
+    tags: array
+    scores: array/float
+    empty_tags: array
+    ports: array/digit
+  }
+}
+
+rule structured_output {
+  events { e : auth_events }
+  match<e.sip:5m> {
+    on event { e | count >= 1; }
+  } -> score(50.0)
+  entity(ip, e.sip)
+  yield security_alerts (
+    risk_context = object {
+      score: float = @score;
+      source, src = e.sip;
+      tags: array = array ["bruteforce", "ssh", e.action];
+      ports: array/digit = array [22, 2222,];
+      geo: object = object {
+        country = e.country
+      };
+    },
+    tags = array ["bruteforce", "ssh"],
+    scores = array [@score, 1.5, 1],
+    empty_tags = array [],
+    ports = array [22, 2222,]
+  )
+}
+
+---
+
+(source_file
+  (window_declaration
+    (identifier)
+    (fields_block
+      (field_declaration
+        (field_name
+          (identifier))
+        (field_type
+          (object_type)))
+      (field_declaration
+        (field_name
+          (identifier))
+        (field_type
+          (array_type)))
+      (field_declaration
+        (field_name
+          (identifier))
+        (field_type
+          (array_type
+            (base_type))))
+      (field_declaration
+        (field_name
+          (identifier))
+        (field_type
+          (array_type)))
+      (field_declaration
+        (field_name
+          (identifier))
+        (field_type
+          (array_type
+            (base_type))))))
+  (rule_declaration
+    (identifier)
+    (events_block
+      (event_declaration
+        (identifier)
+        (identifier)))
+    (rule_flow
+      (stage_chain
+        (final_stage
+          (match_clause
+            (match_params
+              (field_reference
+                (identifier)
+                (identifier))
+              (window_spec
+                (duration)))
+            (on_event_block
+              (match_step
+                (step_branch
+                  (source_expression
+                    (identifier))
+                  (pipe_chain
+                    (measure)
+                    (comparison_operator)
+                    (primary
+                      (number)))))))
+          (score_call
+            (expression
+              (primary
+                (number)))))))
+    (entity_clause
+      (identifier)
+      (expression
+        (primary
+          (field_reference
+            (identifier)
+            (identifier)))))
+    (yield_clause
+      (yield_target
+        (identifier))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (object_expression
+              (object_item
+                (object_targets
+                  (identifier))
+                (field_type
+                  (base_type))
+                (expression
+                  (primary
+                    (derive_reference))))
+              (object_item
+                (object_targets
+                  (identifier)
+                  (identifier))
+                (expression
+                  (primary
+                    (field_reference
+                      (identifier)
+                      (identifier)))))
+              (object_item
+                (object_targets
+                  (identifier))
+                (field_type
+                  (array_type))
+                (expression
+                  (primary
+                    (array_expression
+                      (expression
+                        (primary
+                          (string)))
+                      (expression
+                        (primary
+                          (string)))
+                      (expression
+                        (primary
+                          (field_reference
+                            (identifier)
+                            (identifier))))))))
+              (object_item
+                (object_targets
+                  (identifier))
+                (field_type
+                  (array_type
+                    (base_type)))
+                (expression
+                  (primary
+                    (array_expression
+                      (expression
+                        (primary
+                          (number)))
+                      (expression
+                        (primary
+                          (number)))))))
+              (object_item
+                (object_targets
+                  (identifier))
+                (field_type
+                  (object_type))
+                (expression
+                  (primary
+                    (object_expression
+                      (object_item
+                        (object_targets
+                          (identifier))
+                        (expression
+                          (primary
+                            (field_reference
+                              (identifier)
+                              (identifier)))))))))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (array_expression
+              (expression
+                (primary
+                  (string)))
+              (expression
+                (primary
+                  (string)))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (array_expression
+              (expression
+                (primary
+                  (derive_reference)))
+              (expression
+                (primary
+                  (number)))
+              (expression
+                (primary
+                  (number)))))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (array_expression))))
+      (named_argument
+        (yield_field
+          (identifier))
+        (expression
+          (primary
+            (array_expression
+              (expression
+                (primary
+                  (number)))
+              (expression
+                (primary
+                  (number))))))))))
