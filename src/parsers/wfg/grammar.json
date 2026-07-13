@@ -623,6 +623,31 @@
           "value": ">"
         },
         {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "for"
+                },
+                {
+                  "type": "FIELD",
+                  "name": "rule",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "identifier"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
           "type": "FIELD",
           "name": "stream",
           "content": {
@@ -681,14 +706,32 @@
           "value": "{"
         },
         {
-          "type": "SYMBOL",
-          "name": "use_statement"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "use_statement"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "not_statement"
+            }
+          ]
         },
         {
           "type": "REPEAT",
           "content": {
-            "type": "SYMBOL",
-            "name": "use_statement"
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "use_statement"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "not_statement"
+              }
+            ]
           }
         },
         {
@@ -701,6 +744,18 @@
       "type": "SEQ",
       "members": [
         {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "then"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
           "type": "STRING",
           "value": "use"
         },
@@ -709,12 +764,20 @@
           "value": "("
         },
         {
-          "type": "FIELD",
-          "name": "predicates",
-          "content": {
-            "type": "SYMBOL",
-            "name": "predicate_list"
-          }
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "FIELD",
+              "name": "predicates",
+              "content": {
+                "type": "SYMBOL",
+                "name": "predicate_list"
+              }
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
         },
         {
           "type": "STRING",
@@ -737,8 +800,66 @@
           }
         },
         {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": ","
+                },
+                {
+                  "type": "FIELD",
+                  "name": "window",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "duration"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
           "type": "STRING",
-          "value": ","
+          "value": ")"
+        }
+      ]
+    },
+    "not_statement": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "not"
+        },
+        {
+          "type": "STRING",
+          "value": "("
+        },
+        {
+          "type": "FIELD",
+          "name": "predicates",
+          "content": {
+            "type": "SYMBOL",
+            "name": "predicate_list"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": ")"
+        },
+        {
+          "type": "STRING",
+          "value": "within"
+        },
+        {
+          "type": "STRING",
+          "value": "("
         },
         {
           "type": "FIELD",
@@ -867,8 +988,21 @@
           "type": "FIELD",
           "name": "threshold",
           "content": {
-            "type": "SYMBOL",
-            "name": "percent"
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "percent"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "number"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "duration"
+              }
+            ]
           }
         }
       ]
@@ -887,6 +1021,22 @@
         {
           "type": "STRING",
           "value": "miss"
+        },
+        {
+          "type": "STRING",
+          "value": "precision"
+        },
+        {
+          "type": "STRING",
+          "value": "recall"
+        },
+        {
+          "type": "STRING",
+          "value": "fpr"
+        },
+        {
+          "type": "STRING",
+          "value": "latency_p95"
         }
       ]
     },

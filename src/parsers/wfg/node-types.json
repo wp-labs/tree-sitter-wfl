@@ -150,6 +150,14 @@
         "required": true,
         "types": [
           {
+            "type": "duration",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
             "type": "percent",
             "named": true
           }
@@ -192,6 +200,16 @@
         "types": [
           {
             "type": "percent",
+            "named": true
+          }
+        ]
+      },
+      "rule": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
             "named": true
           }
         ]
@@ -245,6 +263,32 @@
     "type": "mode_keyword",
     "named": true,
     "fields": {}
+  },
+  {
+    "type": "not_statement",
+    "named": true,
+    "fields": {
+      "predicates": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "predicate_list",
+            "named": true
+          }
+        ]
+      },
+      "window": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "duration",
+            "named": true
+          }
+        ]
+      }
+    }
   },
   {
     "type": "predicate",
@@ -393,6 +437,10 @@
       "required": true,
       "types": [
         {
+          "type": "not_statement",
+          "named": true
+        },
+        {
           "type": "use_statement",
           "named": true
         }
@@ -402,7 +450,6 @@
   {
     "type": "source_file",
     "named": true,
-    "root": true,
     "fields": {},
     "children": {
       "multiple": true,
@@ -547,7 +594,7 @@
       },
       "predicates": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "predicate_list",
@@ -557,7 +604,7 @@
       },
       "window": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "duration",
@@ -687,8 +734,7 @@
   },
   {
     "type": "comment",
-    "named": true,
-    "extra": true
+    "named": true
   },
   {
     "type": "comparison_operator",
@@ -708,6 +754,14 @@
   },
   {
     "type": "false",
+    "named": false
+  },
+  {
+    "type": "for",
+    "named": false
+  },
+  {
+    "type": "fpr",
     "named": false
   },
   {
@@ -731,11 +785,19 @@
     "named": false
   },
   {
+    "type": "latency_p95",
+    "named": false
+  },
+  {
     "type": "miss",
     "named": false
   },
   {
     "type": "near_miss",
+    "named": false
+  },
+  {
+    "type": "not",
     "named": false
   },
   {
@@ -755,8 +817,16 @@
     "named": false
   },
   {
+    "type": "precision",
+    "named": false
+  },
+  {
     "type": "rate_constant",
     "named": true
+  },
+  {
+    "type": "recall",
+    "named": false
   },
   {
     "type": "scenario",
@@ -787,6 +857,10 @@
     "named": true
   },
   {
+    "type": "then",
+    "named": false
+  },
+  {
     "type": "timeline",
     "named": false
   },
@@ -812,6 +886,10 @@
   },
   {
     "type": "with",
+    "named": false
+  },
+  {
+    "type": "within",
     "named": false
   },
   {

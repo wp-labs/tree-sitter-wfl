@@ -49,7 +49,7 @@ impl WfsFormatter {
                 continue;
             }
 
-            let leading_closers = leading_closing_braces(trimmed);
+            let leading_closers = leading_closing_tokens(trimmed);
             indent_level = indent_level.saturating_sub(leading_closers);
 
             out.push_str(&" ".repeat(indent_level * self.indent));
@@ -57,7 +57,7 @@ impl WfsFormatter {
             out.push('\n');
             last_blank = false;
 
-            let (open_count, close_count) = brace_delta(trimmed);
+            let (open_count, close_count) = structural_delta(trimmed);
             indent_level += open_count;
             indent_level = indent_level.saturating_sub(close_count.saturating_sub(leading_closers));
         }
@@ -140,10 +140,10 @@ fn validate_structure(content: &str) -> Result<(), WfsFormatError> {
     Ok(())
 }
 
-fn leading_closing_braces(line: &str) -> usize {
+fn leading_closing_tokens(line: &str) -> usize {
     let mut count = 0usize;
     for ch in line.chars() {
-        if ch == '}' {
+        if matches!(ch, '}' | ')' | ']') {
             count += 1;
         } else {
             break;
@@ -152,7 +152,7 @@ fn leading_closing_braces(line: &str) -> usize {
     count
 }
 
-fn brace_delta(line: &str) -> (usize, usize) {
+fn structural_delta(line: &str) -> (usize, usize) {
     let mut open_count = 0usize;
     let mut close_count = 0usize;
     let mut in_string = false;
@@ -180,8 +180,8 @@ fn brace_delta(line: &str) -> (usize, usize) {
 
         match ch {
             '"' => in_string = true,
-            '{' => open_count += 1,
-            '}' => close_count += 1,
+            '{' | '(' | '[' => open_count += 1,
+            '}' | ')' | ']' => close_count += 1,
             _ => {}
         }
         i += 1;
@@ -273,9 +273,41 @@ window security_alerts {
 }
 "#;
 
+    const WFUSION_AUTH_WFS: &str = r#"window xy_system_ssh_log {
+    stream_tag = "xy_system_ssh_log"
+    time = occur_time
+    over = 2h
+    fields {
+        tenant_id: chars
+        source_ip: ip
+        target_host: chars
+        target_user: chars
+        whitelist_hit: chars
+    }
+}
+
+window other_logs {
+    stream_tag = [
+        "xy_system_audit_log",
+        "xy_system_network_log"
+    ]
+    time = occur_time
+    over = 2h
+    fields {
+        tenant_id: chars
+        source_ip: ip
+    }
+}
+"#;
+
     #[test]
     fn formats_sample_wfs() {
         assert_eq!(format(NETWORK_WFS).unwrap(), NETWORK_WFS);
+    }
+
+    #[test]
+    fn formats_wfusion_schema_with_stream_tag() {
+        assert_eq!(format(WFUSION_AUTH_WFS).unwrap(), WFUSION_AUTH_WFS);
     }
 
     #[test]

@@ -427,4 +427,74 @@ rule structured_output {
         assert!(source_tree.contains("array_type"));
     }
 
+    #[test]
+    fn test_wfusion_examples_parse() {
+        let schema = r#"
+window xy_system_ssh_log {
+    stream_tag = "xy_system_ssh_log"
+    time = occur_time
+    over = 2h
+    fields {
+        tenant_id: chars
+        source_ip: ip
+        target_host: chars
+        target_user: chars
+    }
+}
+"#;
+        let schema_tree = parse_ok_with(super::language_wfs(), schema);
+        assert!(schema_tree.contains("stream_attribute"));
+
+        let rule = r#"
+use "auth.wfs"
+
+rule ssh_brute_force_alert {
+    events {
+        s : xy_system_ssh_log
+            && operation in ("failed_login", "authenticate")
+            && isnotnull(source_ip)
+            && is_blank(target_host) == false
+    }
+    match<tenant_id,source_ip,target_host,target_user:1m:fixed> {
+        on event { s | count >= 3; }
+    } -> score(if count(s) >= 1000 then 100.0 else 65.0)
+    entity(ip, s.source_ip)
+    yield security_alerts (
+        alert_id = concat("alert_", sha1(fmt("{}", strftime(now(), "%Y-%m-%d %H:%M:%S%.3f")))),
+        target_user = default_if_blank(s.target_user, "unknown")
+    )
+    limits { on_exceed = throttle; }
+}
+"#;
+        let rule_tree = parse_ok(rule);
+        assert!(rule_tree.contains("in_expression"));
+        assert!(rule_tree.contains("function_call"));
+        assert!(rule_tree.contains("limits_clause"));
+
+        let scenario = r#"
+use "../schemas/auth.wfs"
+use "../rules/ssh_brute_force_alert.wfl"
+
+#[duration=1m]
+scenario ssh_brute_force_alert_case<seed=42> {
+    traffic {
+        stream xy_system_ssh_log gen 10/s
+    }
+    injection {
+        hit<30%> xy_system_ssh_log {
+            source_ip seq {
+                use(tenant_id="tenant01", event_category="auth", operation="failed_login", outcome="failed") with(25)
+            }
+        }
+    }
+    expect {
+        hit(ssh_brute_force_alert) >= 70%
+    }
+}
+"#;
+        let scenario_tree = parse_ok_with(super::language_wfg(), scenario);
+        assert!(scenario_tree.contains("injection_case"));
+        assert!(scenario_tree.contains("expect_statement"));
+    }
+
 }

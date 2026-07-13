@@ -12,6 +12,10 @@
   "injection"
   "seq"
   "with"
+  "for"
+  "then"
+  "not"
+  "within"
   "expect"
 ] @keyword
 
@@ -19,6 +23,10 @@
   "hit"
   "near_miss"
   "miss"
+  "precision"
+  "recall"
+  "fpr"
+  "latency_p95"
 ] @keyword
 
 [

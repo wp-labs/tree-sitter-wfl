@@ -308,6 +308,51 @@ test full_chain_detected for rat_propagation {
 }
 "#;
 
+    const WFUSION_ALERT_WFL: &str = r#"use "auth.wfs"
+
+rule ssh_brute_force_alert {
+    events {
+        s : xy_system_ssh_log
+            && event_category == "auth"
+            && operation in ("failed_login", "authenticate")
+            && isnotnull(source_ip)
+            && is_blank(target_host) == false
+    }
+
+    match<tenant_id,source_ip,target_host,target_user:1m:fixed> {
+        on event { s | count >= 3; }
+    } -> score(
+        if count(s) >= 1000 then 100.0
+        else if lower(default_if_blank(s.target_user, "unknown")) in ("root", "admin", "administrator") then 73.0
+        else 65.0
+    )
+
+    entity(ip, s.source_ip)
+
+    yield security_alerts (
+        alert_id = concat(
+            "alert_",
+            sha1(
+                fmt(
+                    "{}|{}|{}",
+                    s.tenant_id,
+                    s.source_ip,
+                    strftime(now(), "%Y-%m-%d %H:%M:%S%.3f")
+                )
+            )
+        ),
+        source_systems = split("sdm-rule-engine", ","),
+        target_user = default_if_blank(s.target_user, "unknown")
+    )
+
+    limits {
+        max_memory = "64MB";
+        max_instances = 10000;
+        on_exceed = throttle;
+    }
+}
+"#;
+
     #[test]
     fn formats_sample_wfl() {
         let formatted = format(RAT_PROPAGATION_WFL).unwrap();
@@ -315,6 +360,16 @@ test full_chain_detected for rat_propagation {
         assert!(formatted.contains("    yield security_alerts (\n        sip = scan.sip,\n"));
         assert!(formatted.contains("test full_chain_detected for rat_propagation {\n    input {\n"));
         assert!(formatted.contains("    expect { hits == 3; }\n"));
+    }
+
+    #[test]
+    fn formats_wfusion_alert_rule() {
+        let formatted = format(WFUSION_ALERT_WFL).unwrap();
+        assert!(formatted.contains("rule ssh_brute_force_alert {\n    events {\n"));
+        assert!(formatted.contains("        s : xy_system_ssh_log\n"));
+        assert!(formatted.contains("        if count(s) >= 1000 then 100.0\n"));
+        assert!(formatted.contains("        alert_id = concat(\n"));
+        assert!(formatted.contains("        on_exceed = throttle;\n"));
     }
 
     #[test]

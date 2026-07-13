@@ -236,6 +236,29 @@ scenario sandbox<seed=42> {
 }
 "#;
 
+    const WFUSION_SCENARIO_WFG: &str = r#"use "../schemas/auth.wfs"
+use "../rules/ssh_brute_force_alert.wfl"
+
+#[duration=1m]
+scenario ssh_brute_force_alert_case<seed=42> {
+    traffic {
+        stream xy_system_ssh_log gen 10/s
+    }
+
+    injection {
+        hit<30%> xy_system_ssh_log {
+            source_ip seq {
+                use(tenant_id="tenant01", event_category="auth", operation="failed_login", outcome="failed", observer_product="sshd", target_host="ent-bas-zerotrust-01", target_user="root") with(25)
+            }
+        }
+    }
+
+    expect {
+        hit(ssh_brute_force_alert) >= 70%
+    }
+}
+"#;
+
     #[test]
     fn formats_sample_wfg() {
         let formatted = format(NETWORK_WFG).unwrap();
@@ -243,6 +266,15 @@ scenario sandbox<seed=42> {
         assert!(formatted.contains("    traffic { stream auth_events gen 5/s }\n"));
         assert!(formatted.contains("        hit<100%> for rat_propagation_auth auth_events {\n"));
         assert!(formatted.contains("                use(result=\"success\", service=\"ssh\", dport=22, dip=\"192.168.1.10\") with(10)\n"));
+    }
+
+    #[test]
+    fn formats_wfusion_scenario() {
+        let formatted = format(WFUSION_SCENARIO_WFG).unwrap();
+        assert!(formatted.contains("scenario ssh_brute_force_alert_case<seed=42> {\n"));
+        assert!(formatted.contains("    traffic {\n        stream xy_system_ssh_log gen 10/s\n    }\n"));
+        assert!(formatted.contains("        hit<30%> xy_system_ssh_log {\n"));
+        assert!(formatted.contains("                use(tenant_id=\"tenant01\", event_category=\"auth\", operation=\"failed_login\", outcome=\"failed\", observer_product=\"sshd\", target_host=\"ent-bas-zerotrust-01\", target_user=\"root\") with(25)\n"));
     }
 
     #[test]
