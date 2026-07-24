@@ -299,7 +299,7 @@ Full expression system with operator precedence:
 
 **Variables:** `$VAR` or `${VAR:default_value}` for runtime substitution.
 
-**Built-in functions:** `count`, `sum`, `avg`, `min`, `max`, `distinct`, `fmt`, `baseline`, `window.has`, `hit`, `contains`, `regex_match`, `len`, `lower`, `upper`, `time_diff`, `time_bucket`, `coalesce`, `try`, `collect_set`, `collect_list`, `first`, `last`, `stddev`, `percentile`.
+**Built-in functions:** `count`, `sum`, `avg`, `min`, `max`, `distinct`, `fmt`, `baseline`, `window.has`, `hit`, `contains`, `regex_match`, `len`, `lower`, `upper`, `join`, `join_by`, `time_diff`, `time_bucket`, `coalesce`, `try`, `sha1_n`, `collect_set`, `collect_list`, `first`, `last`, `stddev`, `percentile`.
 
 ## Usage
 
