@@ -2189,6 +2189,10 @@
         {
           "type": "window_declaration",
           "named": true
+        },
+        {
+          "type": "yield_preset_declaration",
+          "named": true
         }
       ]
     }
@@ -2629,6 +2633,32 @@
     }
   },
   {
+    "type": "yield_preset_declaration",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "named_argument",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "yield_target",
     "named": true,
     "fields": {
@@ -3044,6 +3074,10 @@
   },
   {
     "type": "precision",
+    "named": false
+  },
+  {
+    "type": "preset",
     "named": false
   },
   {

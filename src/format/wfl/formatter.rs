@@ -577,6 +577,20 @@ rule ssh_brute_force_alert {
     }
 
     #[test]
+    fn formats_global_yield_preset() {
+        let input = r#"yield preset base_alerts (
+alert_id = concat("alert_", @__wfu_id),
+created_time = strftime(@emit_time),
+)
+"#;
+        let formatted = format_syntax_tree(input).unwrap();
+        assert!(formatted.contains("yield preset base_alerts (\n"));
+        assert!(formatted.contains("    alert_id = concat(\"alert_\", @__wfu_id),\n"));
+        assert!(formatted.contains("    created_time = strftime(@emit_time),\n"));
+        assert_eq!(format_syntax_tree(&formatted).unwrap(), formatted);
+    }
+
+    #[test]
     fn formats_indentation() {
         let input = "rule x {\nevents {\na : stream\n}\n}\n";
         let expected = "rule x {\n    events {\n        a : stream\n    }\n}\n";

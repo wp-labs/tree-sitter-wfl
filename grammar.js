@@ -31,6 +31,7 @@ module.exports = grammar({
             $.window_declaration,
             $.pattern_declaration,
             $.rule_declaration,
+            $.yield_preset_declaration,
             $.test_block,
             $.scenario_declaration,
           ),
@@ -122,6 +123,23 @@ module.exports = grammar({
         optional($.conv_clause),
         optional($.limits_clause),
         "}",
+      ),
+
+    // `_global.wfl` uses a top-level yield template shared by rules.
+    yield_preset_declaration: ($) =>
+      seq(
+        "yield",
+        "preset",
+        field("name", $.identifier),
+        "(",
+        optional(
+          seq(
+            $.named_argument,
+            repeat(seq(",", $.named_argument)),
+            optional(","),
+          ),
+        ),
+        ")",
       ),
 
     rule_flow: ($) =>
