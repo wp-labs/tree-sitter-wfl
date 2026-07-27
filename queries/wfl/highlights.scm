@@ -119,6 +119,8 @@
   alias: (identifier) @variable
   window: (identifier) @type)
 
+(match_params (field_reference) @variable.parameter)
+
 (traffic_stream stream: (identifier) @type)
 (injection_case rule: (identifier) @function)
 (injection_case stream: (identifier) @type)
@@ -128,6 +130,7 @@
 (each_clause alias: (identifier) @variable)
 (join_clause window: (identifier) @type)
 (yield_target target: (identifier) @type)
+(yield_clause base: (identifier) @type)
 (entity_clause type: (identifier) @type)
 (entity_clause type: (string) @type)
 

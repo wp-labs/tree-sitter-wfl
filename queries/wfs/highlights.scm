@@ -13,6 +13,9 @@
 (string) @string
 (duration) @number
 
+[ "{" "}" "[" "]" ] @punctuation.bracket
+[ ":" "," "=" "/" ] @punctuation.delimiter
+
 [
   "array"
   "chars"
@@ -30,6 +33,7 @@
 (field_declaration name: (_) @property)
 (field_declaration type: (_) @type)
 (time_attribute (identifier) @property)
+(stream_attribute (string) @string.special)
 (quoted_identifier) @string.special
 
 (identifier) @variable

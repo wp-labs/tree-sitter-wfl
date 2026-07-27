@@ -84,15 +84,20 @@ pub const WFS_EDITOR_ASSET_MANIFEST: &str = include_str!("../../editor/wfs/asset
 // pub const LOCALS_QUERY: &str = include_str!("../../queries/locals.scm");
 // pub const TAGS_QUERY: &str = include_str!("../../queries/tags.scm");
 
-pub use format::{format, format_or_original, format_with_indent, WflFormatError, WflFormatter};
+pub use format::{
+    format, format_or_original, format_syntax_tree, format_with_indent, WflFormatError,
+    WflFormatter,
+};
 pub use format::{
     format as format_wfl,
     format_or_original as format_wfl_or_original,
+    format_syntax_tree as format_wfl_syntax_tree,
     format_with_indent as format_wfl_with_indent,
 };
 pub use format::wfg::{
     format as format_wfg,
     format_or_original as format_wfg_or_original,
+    format_syntax_tree as format_wfg_syntax_tree,
     format_with_indent as format_wfg_with_indent,
     WfgFormatError,
     WfgFormatter,
@@ -100,6 +105,7 @@ pub use format::wfg::{
 pub use format::wfs::{
     format as format_wfs,
     format_or_original as format_wfs_or_original,
+    format_syntax_tree as format_wfs_syntax_tree,
     format_with_indent as format_wfs_with_indent,
     WfsFormatError,
     WfsFormatter,

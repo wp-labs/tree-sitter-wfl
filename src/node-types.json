@@ -2582,7 +2582,18 @@
   {
     "type": "yield_clause",
     "named": true,
-    "fields": {},
+    "fields": {
+      "base": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": true,
       "required": true,

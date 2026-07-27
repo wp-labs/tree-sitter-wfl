@@ -6,6 +6,10 @@ pub fn format_with_indent(content: &str, indent: usize) -> Result<String, WfgFor
     WfgFormatter::with_indent(indent).format(content)
 }
 
+pub fn format_syntax_tree(content: &str) -> Result<String, WfgFormatError> {
+    WfgFormatter::new().format_syntax_tree(content)
+}
+
 pub fn format_or_original(content: &str) -> String {
     WfgFormatter::new().format_or_original(content)
 }
@@ -33,6 +37,16 @@ impl WfgFormatter {
 
     pub fn format(&self, content: &str) -> Result<String, WfgFormatError> {
         validate_structure(content)?;
+        self.format_validated(content)
+    }
+
+    pub fn format_syntax_tree(&self, content: &str) -> Result<String, WfgFormatError> {
+        validate_structure(content)?;
+        validate_syntax_tree(content)?;
+        self.format_validated(content)
+    }
+
+    fn format_validated(&self, content: &str) -> Result<String, WfgFormatError> {
 
         let normalized = content.replace("\r\n", "\n").replace('\r', "\n");
         let mut out = String::new();
@@ -71,6 +85,36 @@ impl WfgFormatter {
     pub fn format_or_original(&self, content: &str) -> String {
         self.format(content).unwrap_or_else(|_| content.to_string())
     }
+}
+
+fn validate_syntax_tree(content: &str) -> Result<(), WfgFormatError> {
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&crate::language_wfg())
+        .expect("bundled WFG language must load");
+    let tree = parser.parse(content, None).expect("parser must produce a tree");
+    if let Some(point) = first_syntax_error(tree.root_node()) {
+        return Err(WfgFormatError::Syntax {
+            line: point.row + 1,
+            column: point.column + 1,
+        });
+    }
+    Ok(())
+}
+
+fn first_syntax_error(node: tree_sitter::Node<'_>) -> Option<tree_sitter::Point> {
+    if node.is_error() || node.is_missing() {
+        return Some(node.start_position());
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.has_error() || child.is_missing() {
+            if let Some(point) = first_syntax_error(child) {
+                return Some(point);
+            }
+        }
+    }
+    None
 }
 
 fn validate_structure(content: &str) -> Result<(), WfgFormatError> {
@@ -195,6 +239,7 @@ pub enum WfgFormatError {
     UnclosedString { line: usize },
     UnclosedBrace { line: usize },
     UnexpectedClosing { line: usize },
+    Syntax { line: usize, column: usize },
 }
 
 impl std::fmt::Display for WfgFormatError {
@@ -209,6 +254,9 @@ impl std::fmt::Display for WfgFormatError {
             WfgFormatError::UnexpectedClosing { line } => {
                 write!(f, "line {}: unexpected closing brace", line)
             }
+            WfgFormatError::Syntax { line, column } => {
+                write!(f, "line {}, column {}: invalid WFG syntax", line, column)
+            }
         }
     }
 }
@@ -217,7 +265,9 @@ impl std::error::Error for WfgFormatError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{format, format_or_original, format_with_indent, WfgFormatError};
+    use super::{
+        format, format_or_original, format_syntax_tree, format_with_indent, WfgFormatError,
+    };
 
     const NETWORK_WFG: &str = r#"use "../../schemas/network/network.wfs"
 use "../../rules/rat_propagation/rat_propagation.wfl"
@@ -296,5 +346,12 @@ scenario ssh_brute_force_alert_case<seed=42> {
     fn reports_unclosed_brace() {
         let err = format("scenario x {").unwrap_err();
         assert!(matches!(err, WfgFormatError::UnclosedBrace { .. }));
+    }
+
+    #[test]
+    fn syntax_tree_formatter_rejects_invalid_scenarios() {
+        let err = format_syntax_tree("scenario {\n    traffic {}\n}\n").unwrap_err();
+        assert!(matches!(err, WfgFormatError::Syntax { .. }));
+        assert!(format_syntax_tree(WFUSION_SCENARIO_WFG).is_ok());
     }
 }

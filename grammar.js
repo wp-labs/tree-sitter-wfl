@@ -316,6 +316,7 @@ module.exports = grammar({
       seq(
         "yield",
         $.yield_target,
+        optional(seq(":", field("base", $.identifier))),
         "(",
         $.named_argument,
         repeat(seq(",", $.named_argument)),

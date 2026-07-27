@@ -6,6 +6,12 @@ pub fn format_with_indent(content: &str, indent: usize) -> Result<String, WflFor
     WflFormatter::with_indent(indent).format(content)
 }
 
+/// Format only syntactically valid WFL, using the tree-sitter tree as the
+/// validation boundary before whitespace is rewritten.
+pub fn format_syntax_tree(content: &str) -> Result<String, WflFormatError> {
+    WflFormatter::new().format_syntax_tree(content)
+}
+
 pub fn format_or_original(content: &str) -> String {
     WflFormatter::new().format_or_original(content)
 }
@@ -33,6 +39,18 @@ impl WflFormatter {
 
     pub fn format(&self, content: &str) -> Result<String, WflFormatError> {
         validate_structure(content)?;
+        let expanded = expand_long_named_arguments(content, 100).unwrap_or_else(|| content.to_string());
+        self.format_validated(&expanded)
+    }
+
+    pub fn format_syntax_tree(&self, content: &str) -> Result<String, WflFormatError> {
+        validate_structure(content)?;
+        validate_syntax_tree(content)?;
+        let expanded = expand_long_named_arguments(content, 100).unwrap_or_else(|| content.to_string());
+        self.format_validated(&expanded)
+    }
+
+    fn format_validated(&self, content: &str) -> Result<String, WflFormatError> {
 
         let normalized = content.replace("\r\n", "\n").replace('\r', "\n");
         let mut out = String::new();
@@ -71,6 +89,178 @@ impl WflFormatter {
     pub fn format_or_original(&self, content: &str) -> String {
         self.format(content).unwrap_or_else(|_| content.to_string())
     }
+}
+
+fn expand_long_named_arguments(content: &str, max_width: usize) -> Option<String> {
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&crate::language_wfl()).ok()?;
+    let tree = parser.parse(content, None)?;
+    if tree.root_node().has_error() {
+        return None;
+    }
+
+    let mut replacements = Vec::new();
+    collect_long_named_arguments(
+        tree.root_node(),
+        content,
+        max_width,
+        &mut replacements,
+    );
+    if replacements.is_empty() {
+        return Some(content.to_string());
+    }
+
+    let mut result = content.to_string();
+    for (start, end, replacement) in replacements.into_iter().rev() {
+        result.replace_range(start..end, &replacement);
+    }
+    Some(result)
+}
+
+fn collect_long_named_arguments(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    max_width: usize,
+    replacements: &mut Vec<(usize, usize, String)>,
+) {
+    if node.kind() == "named_argument" {
+        let text = &source[node.byte_range()];
+        let exceeds_width = text.lines().enumerate().any(|(line_index, line)| {
+            let prefix = if line_index == 0 {
+                node.start_position().column
+            } else {
+                0
+            };
+            prefix + line.len() > max_width
+        });
+        if text.contains('\n') || exceeds_width {
+            if let (Some(name), Some(value)) = (
+                node.child_by_field_name("name"),
+                node.child_by_field_name("value"),
+            ) {
+                let name = source[name.byte_range()].trim();
+                let prefix = format!("{name} = ");
+                let rendered = render_expression(value, source, prefix.len(), max_width);
+                replacements.push((
+                    node.start_byte(),
+                    node.end_byte(),
+                    format!("{prefix}{rendered}"),
+                ));
+            }
+        }
+        return;
+    }
+
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_long_named_arguments(child, source, max_width, replacements);
+    }
+}
+
+fn render_expression(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    prefix_width: usize,
+    max_width: usize,
+) -> String {
+    let node = unwrap_expression(node);
+    let flat = source[node.byte_range()].trim();
+    if !flat.contains('\n') && prefix_width + flat.len() <= max_width {
+        return flat.to_string();
+    }
+    if node.kind() != "function_call" {
+        return flat.to_string();
+    }
+
+    let open = flat.find('(').unwrap_or(flat.len());
+    let head = &flat[..open];
+    let arguments = function_arguments(node);
+
+    // Keep a thin wrapper attached to a nested call. This produces compact
+    // forms such as `sha1_n(join_by(` without flattening join_by's arguments.
+    if arguments.len() == 2 && unwrap_expression(arguments[0]).kind() == "function_call" {
+        let nested =
+            render_expression(arguments[0], source, prefix_width + head.len() + 1, max_width);
+        if nested.contains('\n') {
+            let mut lines = nested.lines();
+            let first = lines.next().unwrap_or_default();
+            let mut output = format!("{head}({first}");
+            let rest: Vec<&str> = lines.collect();
+            for (index, line) in rest.iter().enumerate() {
+                output.push('\n');
+                output.push_str(line);
+                if index + 1 == rest.len() {
+                    output.push_str(", ");
+                    output.push_str(source[arguments[1].byte_range()].trim());
+                }
+            }
+            output.push(')');
+            return output;
+        }
+    }
+
+    let mut output = format!("{head}(");
+    for (index, argument) in arguments.iter().enumerate() {
+        output.push('\n');
+        output.push_str(&render_expression(*argument, source, 0, max_width));
+        if index + 1 != arguments.len() {
+            output.push(',');
+        }
+    }
+    output.push('\n');
+    output.push(')');
+    output
+}
+
+fn unwrap_expression(mut node: tree_sitter::Node<'_>) -> tree_sitter::Node<'_> {
+    while matches!(node.kind(), "expression" | "primary") && node.named_child_count() == 1 {
+        node = node.named_child(0).expect("single named child must exist");
+    }
+    node
+}
+
+fn function_arguments(node: tree_sitter::Node<'_>) -> Vec<tree_sitter::Node<'_>> {
+    let function = node.child_by_field_name("function");
+    let object = node.child_by_field_name("object");
+    let method = node.child_by_field_name("method");
+    let mut cursor = node.walk();
+    node.named_children(&mut cursor)
+        .filter(|child| {
+            !function.is_some_and(|field| field.id() == child.id())
+                && !object.is_some_and(|field| field.id() == child.id())
+                && !method.is_some_and(|field| field.id() == child.id())
+        })
+        .collect()
+}
+
+fn validate_syntax_tree(content: &str) -> Result<(), WflFormatError> {
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&crate::language_wfl())
+        .expect("bundled WFL language must load");
+    let tree = parser.parse(content, None).expect("parser must produce a tree");
+    if let Some(point) = first_syntax_error(tree.root_node()) {
+        return Err(WflFormatError::Syntax {
+            line: point.row + 1,
+            column: point.column + 1,
+        });
+    }
+    Ok(())
+}
+
+fn first_syntax_error(node: tree_sitter::Node<'_>) -> Option<tree_sitter::Point> {
+    if node.is_error() || node.is_missing() {
+        return Some(node.start_position());
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.has_error() || child.is_missing() {
+            if let Some(point) = first_syntax_error(child) {
+                return Some(point);
+            }
+        }
+    }
+    None
 }
 
 fn validate_structure(content: &str) -> Result<(), WflFormatError> {
@@ -153,8 +343,10 @@ fn leading_closing_tokens(line: &str) -> usize {
 }
 
 fn structural_delta(line: &str) -> (usize, usize) {
-    let mut open_count = 0usize;
-    let mut close_count = 0usize;
+    let mut brace_open_count = 0usize;
+    let mut brace_close_count = 0usize;
+    let mut has_group_open = false;
+    let mut has_group_close = false;
     let mut in_string = false;
     let mut escaped = false;
     let chars: Vec<char> = line.chars().collect();
@@ -180,14 +372,19 @@ fn structural_delta(line: &str) -> (usize, usize) {
 
         match ch {
             '"' => in_string = true,
-            '{' | '(' | '[' => open_count += 1,
-            '}' | ')' | ']' => close_count += 1,
+            '{' => brace_open_count += 1,
+            '}' => brace_close_count += 1,
+            '(' | '[' => has_group_open = true,
+            ')' | ']' => has_group_close = true,
             _ => {}
         }
         i += 1;
     }
 
-    (open_count, close_count)
+    (
+        brace_open_count + usize::from(has_group_open),
+        brace_close_count + usize::from(has_group_close),
+    )
 }
 
 #[derive(Debug)]
@@ -195,6 +392,7 @@ pub enum WflFormatError {
     UnclosedString { line: usize },
     UnclosedBrace { line: usize },
     UnexpectedClosing { line: usize },
+    Syntax { line: usize, column: usize },
 }
 
 impl std::fmt::Display for WflFormatError {
@@ -209,6 +407,9 @@ impl std::fmt::Display for WflFormatError {
             WflFormatError::UnexpectedClosing { line } => {
                 write!(f, "line {}: unexpected closing brace", line)
             }
+            WflFormatError::Syntax { line, column } => {
+                write!(f, "line {}, column {}: invalid WFL syntax", line, column)
+            }
         }
     }
 }
@@ -217,7 +418,10 @@ impl std::error::Error for WflFormatError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{format, format_or_original, format_with_indent, WflFormatError};
+    use super::{
+        expand_long_named_arguments, format, format_or_original, format_syntax_tree,
+        format_with_indent, WflFormatError,
+    };
 
     const RAT_PROPAGATION_WFL: &str = r#"use "network.wfs"
 
@@ -392,4 +596,64 @@ rule ssh_brute_force_alert {
         let err = format("rule x {").unwrap_err();
         assert!(matches!(err, WflFormatError::UnclosedBrace { .. }));
     }
+
+    #[test]
+    fn syntax_tree_formatter_rejects_incomplete_rules() {
+        let err = format_syntax_tree("rule x {\n    events { a : stream }\n}\n").unwrap_err();
+        assert!(matches!(err, WflFormatError::Syntax { .. }));
+        assert!(format_syntax_tree(WFUSION_ALERT_WFL).is_ok());
+    }
+
+    #[test]
+    fn expands_long_nested_function_assignments() {
+        let input = r#"use "events.wfs"
+
+rule compact {
+    events { s : events }
+    match<tenant_id:1m> { on event { s | count >= 1; } } -> score(80)
+    entity(ip, s.source_ip)
+    yield alerts : base_alerts (
+        merge_id = concat("merge_", sha1_n(join_by("|", lower(coalesce(s.tenant_id, "")), "sdm-kunai-ioc-001", lower(coalesce(s.target_host, "")), lower(coalesce(s.target_domain, ""))), 16))
+    )
+}
+"#;
+        let formatted = format_syntax_tree(input).unwrap();
+        assert!(
+            expand_long_named_arguments(input, 100)
+                .unwrap()
+                .contains("merge_id = concat(\n"),
+            "expression expansion did not run for:\n{}",
+            {
+                let mut parser = tree_sitter::Parser::new();
+                parser.set_language(&crate::language_wfl()).unwrap();
+                parser.parse(input, None).unwrap().root_node().to_sexp()
+            }
+        );
+        assert!(formatted.contains(
+            r#"        merge_id = concat(
+            "merge_",
+            sha1_n(join_by(
+                "|",
+                lower(coalesce(s.tenant_id, "")),
+                "sdm-kunai-ioc-001",
+                lower(coalesce(s.target_host, "")),
+                lower(coalesce(s.target_domain, ""))
+            ), 16)
+        )"#
+        ), "formatted output:\n{formatted}");
+        assert_eq!(format_syntax_tree(&formatted).unwrap(), formatted);
+
+        let awkward_multiline = input.replace(
+            r#"merge_id = concat("merge_", sha1_n(join_by("|", lower(coalesce(s.tenant_id, "")), "sdm-kunai-ioc-001", lower(coalesce(s.target_host, "")), lower(coalesce(s.target_domain, ""))), 16))"#,
+            r#"merge_id = concat(
+            "merge_",sha1_n(join_by("|",
+                lower(coalesce(s.tenant_id, "")),
+                "sdm-kunai-ioc-001",
+                lower(coalesce(s.target_host, "")),
+                lower(coalesce(s.target_domain, ""))), 16)
+        )"#,
+        );
+        assert_eq!(format_syntax_tree(&awkward_multiline).unwrap(), formatted);
+    }
+
 }
