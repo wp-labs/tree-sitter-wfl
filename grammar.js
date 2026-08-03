@@ -55,8 +55,9 @@ module.exports = grammar({
     window_attribute: ($) =>
       choice($.stream_attribute, $.time_attribute, $.over_attribute),
 
+    // `stream_tag` is the runtime (wf-lang) spelling; `stream` is kept as an alias.
     stream_attribute: ($) =>
-      seq("stream", "=", choice($.string, $.string_array)),
+      seq(choice("stream", "stream_tag"), "=", choice($.string, $.string_array)),
 
     string_array: ($) =>
       seq("[", $.string, repeat(seq(",", $.string)), "]"),
@@ -131,6 +132,15 @@ module.exports = grammar({
         "yield",
         "preset",
         field("name", $.identifier),
+        optional(
+          seq(
+            "<",
+            $.preset_param,
+            repeat(seq(",", $.preset_param)),
+            optional(","),
+            ">",
+          ),
+        ),
         "(",
         optional(
           seq(
@@ -141,6 +151,14 @@ module.exports = grammar({
         ),
         ")",
       ),
+
+    // prec > PREC.COMPARE so that a `>` after a default expression closes the
+    // param list instead of being parsed as a comparison operator.
+    preset_param: ($) =>
+      prec(PREC.COMPARE + 1, seq(
+        field("name", $.identifier),
+        optional(seq("=", field("default", $.expression))),
+      )),
 
     rule_flow: ($) =>
       choice(
@@ -236,7 +254,41 @@ module.exports = grammar({
       ),
 
     on_event_block: ($) =>
-      seq("on", "event", "{", repeat1($.match_step), "}"),
+      choice(
+        seq("on", "event", "{", repeat1($.match_step), "}"),
+        seq("on", "event", "any", "{", repeat1($.match_step), "}"),
+        seq(
+          "on",
+          "event",
+          "seq",
+          optional($.seq_modifiers),
+          "{",
+          repeat1($.event_seq_step),
+          "}",
+        ),
+      ),
+
+    seq_modifiers: ($) =>
+      choice(
+        "consec",
+        seq("skip", "=", choice("past_last", "to_next")),
+        seq("consec", "skip", "=", choice("past_last", "to_next")),
+      ),
+
+    event_seq_step: ($) =>
+      seq(
+        optional("not"),
+        choice(
+          seq(
+            "has",
+            field("alias", $.identifier),
+            optional(seq("&&", $.expression)),
+          ),
+          $.step_branch,
+        ),
+        optional(seq("within", $.duration)),
+        ";",
+      ),
 
     close_block: ($) => choice($.on_close_block, $.and_close_block),
 
@@ -334,12 +386,31 @@ module.exports = grammar({
       seq(
         "yield",
         $.yield_target,
-        optional(seq(":", field("base", $.identifier))),
+        optional(
+          seq(
+            ":",
+            field("preset", $.preset_ref),
+            repeat(seq(",", field("preset", $.preset_ref))),
+          ),
+        ),
         "(",
         $.named_argument,
         repeat(seq(",", $.named_argument)),
         ")",
       ),
+
+    preset_ref: ($) =>
+      prec(1, seq(
+        field("base", $.identifier),
+        optional(
+          seq(
+            "<",
+            $.expression,
+            repeat(seq(",", $.expression)),
+            ">",
+          ),
+        ),
+      )),
 
     yield_target: ($) =>
       seq(
