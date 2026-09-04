@@ -921,3 +921,328 @@ rule structured_output {
               (expression
                 (primary
                   (number))))))))))
+
+==================
+yield preset declaration + invocation
+==================
+
+use "base.wfs"
+
+yield preset base_alerts <severity, source = "wfusion"> (
+    rule_name = @__wfu_rule_name,
+    score = @score,
+    severity = $severity,
+    source = $source
+)
+
+rule scan {
+    events { e : auth_events }
+    on each e -> score(50.0)
+    entity(ip, e.sip)
+    yield scan_alerts : base_alerts<"high"> (
+        alert_type = "scan",
+        ioc_value = e.dip
+    )
+}
+
+---
+
+(source_file
+  (use_declaration
+    (string))
+  (preset_declaration
+    name: (identifier)
+    (preset_param_list
+      (preset_param
+        name: (identifier))
+      (preset_param
+        name: (identifier)
+        default: (preset_angle_value
+          (string))))
+    (named_argument
+      name: (yield_field
+        (identifier))
+      value: (expression
+        (primary
+          (derive_reference))))
+    (named_argument
+      name: (yield_field
+        (identifier))
+      value: (expression
+        (primary
+          (derive_reference))))
+    (named_argument
+      name: (yield_field
+        (identifier))
+      value: (expression
+        (primary
+          (variable))))
+    (named_argument
+      name: (yield_field
+        (identifier))
+      value: (expression
+        (primary
+          (variable)))))
+  (rule_declaration
+    name: (identifier)
+    (events_block
+      (event_declaration
+        alias: (identifier)
+        window: (identifier)))
+    (rule_flow
+      (stage_chain
+        (final_stage
+          (each_clause
+            alias: (identifier))
+          (score_call
+            (expression
+              (primary
+                (number)))))))
+    (entity_clause
+      type: (identifier)
+      id: (expression
+        (primary
+          (field_reference
+            object: (identifier)
+            field: (identifier)))))
+    (yield_clause
+      (yield_target
+        target: (identifier))
+      (yield_preset_ref
+        preset: (identifier)
+        (preset_angle_value
+          (string)))
+      (named_argument
+        name: (yield_field
+          (identifier))
+        value: (expression
+          (primary
+            (string))))
+      (named_argument
+        name: (yield_field
+          (identifier))
+        value: (expression
+          (primary
+            (field_reference
+              object: (identifier)
+              field: (identifier))))))))
+
+==================
+top-level list declaration
+==================
+
+blocked_ips = ("1.2.3.4", "5.6.7.8",)
+
+rule check_ip {
+    events { e : conn_events }
+    on each e -> score(30.0)
+    entity(ip, e.sip)
+    yield out (sip = e.sip)
+}
+
+---
+
+(source_file
+  (list_declaration
+    name: (identifier)
+    (expression
+      (primary
+        (string)))
+    (expression
+      (primary
+        (string))))
+  (rule_declaration
+    name: (identifier)
+    (events_block
+      (event_declaration
+        alias: (identifier)
+        window: (identifier)))
+    (rule_flow
+      (stage_chain
+        (final_stage
+          (each_clause
+            alias: (identifier))
+          (score_call
+            (expression
+              (primary
+                (number)))))))
+    (entity_clause
+      type: (identifier)
+      id: (expression
+        (primary
+          (field_reference
+            object: (identifier)
+            field: (identifier)))))
+    (yield_clause
+      (yield_target
+        target: (identifier))
+      (named_argument
+        name: (yield_field
+          (identifier))
+        value: (expression
+          (primary
+            (field_reference
+              object: (identifier)
+              field: (identifier))))))))
+
+==================
+stats rule (declarative window stats)
+==================
+
+rule q12_bidder_count {
+    events { b : bid_events }
+    stats<10s:fixed> group by (b.bidder) {
+        b | count as bid_count;
+        b | avg(b.price) as avg_price;
+        b | distinct_count(b.bidder) as uniq_bidders;
+        b | last(b.url) as last_url where b.url != "";
+        b | top(10, b.price) as top_prices;
+    }
+    entity(digit, b.bidder)
+    yield out (
+        id = b.bidder,
+        detail = fmt("{}", b.bidder)
+    )
+}
+
+---
+
+(source_file
+  (rule_declaration
+    name: (identifier)
+    (events_block
+      (event_declaration
+        alias: (identifier)
+        window: (identifier)))
+    (rule_flow
+      (stats_clause
+        (duration)
+        (stats_group_by
+          (expression
+            (primary
+              (field_reference
+                object: (identifier)
+                field: (identifier)))))
+        (stats_measure
+          alias: (identifier)
+          (stats_agg)
+          label: (identifier))
+        (stats_measure
+          alias: (identifier)
+          (stats_agg
+            (field_reference
+              object: (identifier)
+              field: (identifier)))
+          label: (identifier))
+        (stats_measure
+          alias: (identifier)
+          (stats_agg
+            (field_reference
+              object: (identifier)
+              field: (identifier)))
+          label: (identifier))
+        (stats_measure
+          alias: (identifier)
+          (stats_agg
+            (field_reference
+              object: (identifier)
+              field: (identifier)))
+          label: (identifier)
+          (expression
+            (binary_expression
+              left: (expression
+                (primary
+                  (field_reference
+                    object: (identifier)
+                    field: (identifier))))
+              operator: (comparison_operator)
+              right: (expression
+                (primary
+                  (string))))))
+        (stats_measure
+          alias: (identifier)
+          (stats_agg
+            (number)
+            (field_reference
+              object: (identifier)
+              field: (identifier)))
+          label: (identifier))))
+    (entity_clause
+      type: (identifier)
+      id: (expression
+        (primary
+          (field_reference
+            object: (identifier)
+            field: (identifier)))))
+    (yield_clause
+      (yield_target
+        target: (identifier))
+      (named_argument
+        name: (yield_field
+          (identifier))
+        value: (expression
+          (primary
+            (field_reference
+              object: (identifier)
+              field: (identifier)))))
+      (named_argument
+        name: (yield_field
+          (identifier))
+        value: (expression
+          (primary
+            (function_call
+              function: (identifier)
+              (expression
+                (primary
+                  (string)))
+              (expression
+                (primary
+                  (field_reference
+                    object: (identifier)
+                    field: (identifier)))))))))))
+
+==================
+window schema (wfs) with stream_tag
+==================
+
+window auth_events {
+    stream_tag = "auth"
+    time = event_time
+    over = 30m
+    fields {
+        sip: ip
+        event_time: time
+        count: digit
+    }
+}
+
+---
+
+(source_file
+  (window_declaration
+    (identifier)
+    (window_attribute
+      (stream_attribute
+        (string)))
+    (window_attribute
+      (time_attribute
+        (identifier)))
+    (window_attribute
+      (over_attribute
+        (duration)))
+    (fields_block
+      (field_declaration
+        (field_name
+          (identifier))
+        (field_type
+          (base_type)))
+      (field_declaration
+        (field_name
+          (identifier))
+        (field_type
+          (base_type)))
+      (field_declaration
+        (field_name
+          (identifier))
+        (field_type
+          (base_type))))))

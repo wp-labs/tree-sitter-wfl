@@ -20,6 +20,8 @@ module.exports = grammar({
 
   conflicts: ($) => [
     [$.primary, $.field_reference],
+    // 角括号值形态内 `$var` 可经 variable 或 field_reference 双解释。
+    [$.preset_angle_value, $.field_reference],
   ],
 
   rules: {
@@ -30,6 +32,8 @@ module.exports = grammar({
           choice(
             $.window_declaration,
             $.pattern_declaration,
+            $.preset_declaration,
+            $.list_declaration,
             $.rule_declaration,
             $.test_block,
             $.scenario_declaration,
@@ -55,7 +59,7 @@ module.exports = grammar({
       choice($.stream_attribute, $.time_attribute, $.over_attribute),
 
     stream_attribute: ($) =>
-      seq("stream", "=", choice($.string, $.string_array)),
+      seq("stream_tag", "=", choice($.string, $.string_array)),
 
     string_array: ($) =>
       seq("[", $.string, repeat(seq(",", $.string)), "]"),
@@ -109,6 +113,66 @@ module.exports = grammar({
         "}",
       ),
 
+    // `yield preset <name> [<p1, p2 = default, ...>] (name = expr, ...)` —
+    // 顶层输出模板声明（通常集中 _global.wfl）。
+    preset_declaration: ($) =>
+      seq(
+        "yield",
+        "preset",
+        field("name", $.identifier),
+        optional($.preset_param_list),
+        seq(
+          "(",
+          $.named_argument,
+          repeat(seq(",", $.named_argument)),
+          optional(","),
+          ")",
+        ),
+      ),
+
+    // `<severity, source = "wfusion">` — 参数声明（可带默认值）。默认值与
+    // 引用实参按 winnow angle-body 语义收窄为「括号安全表达式」——角括号段内
+    // 不解析裸比较 `>`（比较请包进 `( )`）。
+    preset_param_list: ($) =>
+      seq(
+        "<",
+        $.preset_param,
+        repeat(seq(",", $.preset_param)),
+        ">",
+      ),
+
+    preset_param: ($) =>
+      seq(
+        field("name", $.identifier),
+        optional(seq("=", field("default", $.preset_angle_value))),
+      ),
+
+    // 角括号段内允许的值形态（原子/括号包裹，无顶层裸比较）。
+    preset_angle_value: ($) =>
+      choice(
+        $.string,
+        $.number,
+        $.boolean,
+        $.identifier,
+        $.variable,
+        $.derive_reference,
+        $.field_reference,
+        $.function_call,
+        $.parenthesized_expression,
+      ),
+
+    // `name = (item, ...)` — 顶层命名字面列表（issue #73），须在规则之前。
+    list_declaration: ($) =>
+      seq(
+        field("name", $.identifier),
+        "=",
+        "(",
+        $.expression,
+        repeat(seq(",", $.expression)),
+        optional(","),
+        ")",
+      ),
+
     rule_declaration: ($) =>
       seq(
         "rule",
@@ -128,6 +192,7 @@ module.exports = grammar({
       choice(
         seq($.pattern_invocation, repeat($.join_clause)),
         $.stage_chain,
+        $.stats_clause,
       ),
 
     meta_block: ($) => seq("meta", "{", repeat($.meta_entry), "}"),
@@ -184,9 +249,41 @@ module.exports = grammar({
         ">",
         "{",
         optional($.key_block),
-        $.on_event_block,
-        optional($.close_block),
+        choice(
+          seq($.on_event_block, optional($.close_block)),
+          $.on_event_mode_block,
+        ),
         "}",
+      ),
+
+    // `on event seq [consec] [skip = ...] { ... }` — ordered + within/not/consec/skip
+    // `on event any { ... }` — unordered co-occurrence
+    on_event_mode_block: ($) =>
+      seq(
+        "on",
+        "event",
+        field("mode", choice("seq", "any")),
+        optional("consec"),
+        optional(seq("skip", "=", choice("past_last", "to_next"))),
+        "{",
+        repeat1($.seq_rule_step),
+        "}",
+      ),
+
+    // One seq-mode step: `[not] (has <alias> [&& expr] | step_branch) [within dur] ;`
+    seq_rule_step: ($) =>
+      seq(
+        optional("not"),
+        choice(
+          seq(
+            "has",
+            field("alias", $.identifier),
+            optional(seq("&&", $.expression)),
+          ),
+          $.step_branch,
+        ),
+        optional(seq("within", $.duration)),
+        ";",
       ),
 
     match_params: ($) =>
@@ -227,6 +324,69 @@ module.exports = grammar({
 
     and_close_block: ($) =>
       seq("and", "close", "{", repeat1($.match_step), "}"),
+
+    // `stats<dur[:fixed|session]> [group by (k1, ...)] [tier f [<b1, <b2]]
+    // { m1; m2; ... }` — 声明式窗口统计规则体（无 score/join/conv）。
+    stats_clause: ($) =>
+      seq(
+        "stats",
+        "<",
+        choice($.duration, $.variable),
+        optional(seq(":", choice("fixed", "session"))),
+        ">",
+        optional($.stats_group_by),
+        optional($.stats_tier),
+        "{",
+        repeat(seq($.stats_measure, ";")),
+        optional($.stats_measure),
+        "}",
+      ),
+
+    stats_group_by: ($) =>
+      seq(
+        "group",
+        "by",
+        "(",
+        optional(seq($.expression, repeat(seq(",", $.expression)))),
+        ")",
+      ),
+
+    // `tier f [<b1, <b2, ... ]` — 数值区间分档（可空边界列表）。
+    stats_tier: ($) =>
+      seq(
+        "tier",
+        $.field_reference,
+        "[",
+        optional(
+          seq($.tier_bound, repeat(seq(",", $.tier_bound))),
+        ),
+        "]",
+      ),
+
+    tier_bound: ($) => seq(choice("<", "<="), $.number),
+
+    // `b | count as n;` / `b | avg(b.price) as p [where expr]`
+    stats_measure: ($) =>
+      seq(
+        field("alias", $.identifier),
+        "|",
+        $.stats_agg,
+        "as",
+        field("label", $.identifier),
+        optional(seq("where", $.expression)),
+      ),
+
+    stats_agg: ($) =>
+      choice(
+        "count",
+        seq(
+          choice("sum", "avg", "min", "max", "distinct_count", "last"),
+          "(",
+          $.field_reference,
+          ")",
+        ),
+        seq("top", "(", $.number, ",", $.field_reference, ")"),
+      ),
 
     match_step: ($) =>
       seq($.step_branch, repeat(seq("||", $.step_branch)), ";"),
@@ -316,10 +476,27 @@ module.exports = grammar({
       seq(
         "yield",
         $.yield_target,
+        optional(
+          seq(":", $.yield_preset_ref, repeat(seq(",", $.yield_preset_ref))),
+        ),
         "(",
         $.named_argument,
         repeat(seq(",", $.named_argument)),
+        optional(","),
         ")",
+      ),
+
+    // `base_alerts<"high">` — 调用 preset 引用（可带位置实参列表）。
+    yield_preset_ref: ($) =>
+      seq(
+        field("preset", $.identifier),
+        optional(
+          seq(
+            "<",
+            optional(seq($.preset_angle_value, repeat(seq(",", $.preset_angle_value)))),
+            ">",
+          ),
+        ),
       ),
 
     yield_target: ($) =>
