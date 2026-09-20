@@ -949,7 +949,7 @@ rule scan {
 
 (source_file
   (use_declaration
-    (string))
+    path: (string))
   (preset_declaration
     name: (identifier)
     (preset_param_list

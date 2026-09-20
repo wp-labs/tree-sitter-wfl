@@ -412,6 +412,26 @@ cargo test
 make
 ```
 
+### Sibling grammars (WFG / WFS)
+
+The `.wfg` and `.wfs` languages have standalone grammars whose generated artifacts are
+vendored under `src/parsers/wfg` and `src/parsers/wfs`. Their sources live in the sibling
+directories `../tree-sitter-wfg` and `../tree-sitter-wfs` (that is also what
+`scripts/build-wasm.mjs` resolves):
+
+```bash
+# Regenerate the standalone WFG parser (writes ../tree-sitter-wfg/src/*)
+cd ../tree-sitter-wfg && tree-sitter generate
+
+# Vendor the artifacts into this crate
+cp src/grammar.json src/node-types.json src/parser.c \
+   ../tree-sitter-wfl/src/parsers/wfg/
+```
+
+The `scenario_*` rules of `grammar.js` and `../tree-sitter-wfg/grammar.js` describe the same
+`.wfg` syntax (see [`docs/wfg-design.md`](docs/wfg-design.md)); keep the node names in sync
+when either side changes.
+
 ### Project Structure
 
 ```

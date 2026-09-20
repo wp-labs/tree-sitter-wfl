@@ -1,305 +1,125 @@
-# WFG 设计（新语法 / 方案 3）
+# WFG 设计（tree-sitter 侧说明）
 
-> 本文是 `.wfg` 场景 DSL 的独立设计文档。
-> 与 `WFL` 主规范解耦演进；不兼容旧 `.wfg` 语法。
-> 本文档随 `warp-fusion` 中的 `wfgen` 实现维护，是 WFG 主设计文档。
+> **权威文档**：`.wfg` 的语法、语义、校验错误码与落地状态以
+> `warp-fusion/docs/design/wfg-design.md` 为准，本文件只做 **tree-sitter 侧**的落点说明：
+> 语法在 grammar 里长什么样、对应哪些节点名、哪些旧语法已被移除。
+>
+> 实现侧（`wfgen` 的解析器 / AST / 生成器）同样以该权威文档为准；本文与它**不构成两份规范**，
+> 如有冲突以权威文档为准。
 
-## 1. 目标与边界
+## 1. 本仓的落点
 
-- 可读性优先：场景编写者一眼看懂“生成什么、验证什么”。
-- 规则验证显式：不允许把规则逻辑藏在语法糖里。
-- stream-first：场景只描述 stream 级数据，window 约束由 `.wfs/.wfl` 推导。
-- 新系统：不做旧语法兼容。
+| 落点 | 说明 |
+|---|---|
+| `grammar.js` 的 `scenario_declaration` 一簇 | 顶层 WFL 语法里的 `.wfg` 场景面（与 `.wfl` / `.wfs` 同文件类型共用一份 grammar） |
+| `src/parsers/wfg/` | **独立** `.wfg` grammar 的产物（`language_wfg()` + `.wfg` 编辑器高亮）；源码在 `../tree-sitter-wfg/grammar.js` |
+| `queries/wfg/highlights.scm` | `.wfg` 高亮（针对独立 grammar 的节点名） |
+| `queries/highlights.scm` / `queries/wfl/highlights.scm` | 顶层 grammar 高亮（含 `.wfg` 关键字与节点名） |
+| `test/corpus/wfg.txt` | 顶层 grammar 的 `.wfg` 语料 |
 
-### 1.1 当前实现状态（2026-06-24）
+两份 grammar 的节点名保持一致（见 §3），因此两套 query 可以互相参照。
 
-| 条目 | 状态 | 说明 |
-|------|------|------|
-| `.wfg` parser / AST | 已实现 | 位于 `crates/wfgen/src/wfg_parser` 与 `wfg_ast.rs`。 |
-| `wfgen gen` / `lint` / `verify` / `send` | 已实现 | CLI 支持 `gen/lint/verify/send/bench/stream`。 |
-| `scenario` / `traffic` / `injection` / `expect` | 已实现主体 | 支持 stream-first 新语法、rule-aware injection、oracle/expect 输出。 |
-| 与 `.wfs/.wfl` 联动校验 | 已实现主体 | `validate_wfg` 会加载 `use`、额外 `--ws/--wfl`，校验 stream/schema/rule/injection/expect。 |
-
-后文若使用“当前实现”，默认指本仓库的 `wfgen` 实现。
-
-## 2. 核心约定
-
-- 注释：只支持 `//`。
-- `#` 不是注释；`#[]` 用于元信息注解。
-- 期望块使用 `expect`（不再使用 `oracle`）。
-- 正确性断言语法：
-  - `hit(<rule>) >= <percent>`
-  - `near_miss(<rule>) <= <percent>`
-  - `miss(<rule>) <= <percent>`
-  - `precision/recall/fpr(<rule>) <op> <percent>`
-  - `latency_p95(<rule>) <op> <duration>`
-
-## 3. 参考示例
-
-```wfg
-use "../schemas/security.wfs"
-use "../rules/brute_force.wfl"
-
-#[duration=10m]
-scenario brute_force_detect<seed=42> {
-
-  traffic {
-    stream auth_events gen 100/s
-    stream auth_events gen wave(base=80/s, amp=40/s, period=2m, shape=sine)
-  }
-
-  injection {
-    hit<30%> auth_events {
-      user seq {
-        use(login="failed") with(3)
-        use(action="port_scan") with(1)
-      }
-    }
-
-    near_miss<10%> auth_events {
-      user seq {
-        use(login="failed") with(2)
-      }
-    }
-
-    miss<60%> auth_events {
-      user seq {
-        use(login="success") with(1)
-      }
-    }
-  }
-
-  expect {
-    hit(brute_force_then_scan) >= 95%
-    near_miss(brute_force_then_scan) <= 1%
-    miss(brute_force_then_scan) <= 0.1%
-  }
-}
-```
-
-## 4. EBNF（新语法）
+## 2. EBNF（与权威文档对齐）
 
 ```ebnf
-scenario_file   = { use_decl } , [ scenario_attrs ] , scenario_decl ;
+scenario_file    = { use_decl } , [ scenario_attrs ] , scenario_decl ;
 
-use_decl        = "use" , STRING ;
+use_decl         = "use" , STRING ;
 
-scenario_attrs  = "#[" , anno_list , "]" ;
+scenario_attrs   = "#[" , anno_list , "]" ;
+anno_list        = anno_item , { "," , anno_item } ;
+anno_item        = IDENT , "=" , value ;
 
-scenario_decl   = "scenario" , IDENT , [ "<" , anno_list , ">" ] , "{" ,
-                    traffic_block ,
-                    [ injection_block ] ,
-                    [ expect_block ] ,
-                  "}" ;
+scenario_decl    = "scenario" , IDENT , [ "<" , anno_list , ">" ] , "{" ,
+                     background_block ,
+                     [ inject_block ] ,
+                     { replay_stmt } ,
+                   "}" ;
 
-anno_list       = anno_item , { "," , anno_item } ;
-anno_item       = IDENT , "=" , value ;
+background_block = "background" , "{" , { ( stream_stmt | entity_stmt ) } , "}" ;
+stream_stmt      = "stream" , IDENT , "gen" , rate_expr , [ ";" ] ;
+entity_stmt      = "entity" , IDENT , "." , IDENT , "zipf" , "(" , zipf_args , ")" , [ ";" ] ;
+zipf_args        = "pool" , "=" , INTEGER , { "," , zipf_arg } ;
+zipf_arg         = ( "exponent" | "fresh" ) , "=" , NUMBER ;
 
-traffic_block   = "traffic" , "{" , { stream_stmt } , "}" ;
-stream_stmt     = "stream" , IDENT , "gen" , rate_expr ;
+rate_expr        = rate_const | wave_expr | burst_expr | timeline_expr ;
+rate_const       = NUMBER , "/" , ( "s" | "m" | "h" ) ;
+wave_expr        = "wave(" , "base=" , rate_const , "," , "amp=" , rate_const , "," ,
+                   "period=" , DURATION , [ "," , "shape=" , shape_kw ] , ")" ;
+burst_expr       = "burst(" , "base=" , rate_const , "," , "peak=" , rate_const , "," ,
+                   "every=" , DURATION , "," , "hold=" , DURATION , ")" ;
+timeline_expr    = "timeline" , "{" , { DURATION , ".." , DURATION , "=" , rate_const , [ ";" ] } , "}" ;
+shape_kw         = "sine" | "triangle" | "square" ;
 
-rate_expr       = rate_const
-                | wave_expr
-                | burst_expr
-                | timeline_expr ;
+inject_block     = "inject" , "{" , { inject_case } , "}" ;
+inject_case      = mode_kw , "<" , [ IDENT , ":" ] , INTEGER , ">" ,
+                   "for" , IDENT , IDENT , "{" , { step | spread_stmt } , "}" ;
+mode_kw          = "hit" | "near_miss" | "miss" ;
+spread_stmt      = "spread" , DURATION , [ ";" ] ;
 
-rate_const      = NUMBER , "/s" ;
-wave_expr       = "wave(" ,
-                  "base=" , rate_const , "," ,
-                  "amp=" , rate_const , "," ,
-                  "period=" , DURATION ,
-                  [ "," , "shape=" , ( "sine" | "triangle" | "square" ) ] ,
-                  ")" ;
+step             = use_step | without_step | join_block ;
+use_step         = [ "then" ] , "use" , value_source , "x" , INTEGER , [ ";" ] ;
+without_step     = [ "then" ] , "without" , "(" , pred_list , ")" ,
+                   [ "within" , DURATION ] , [ ";" ] ;
+join_block       = "join" , IDENT , "as" , IDENT , "{" , { use_step } , "}" ;
+value_source     = "(" , pred_list , ")"
+                 | "(" , json_object , ")"
+                 | "from" , STRING ;
+pred_list        = pred , { "," , pred } ;
+pred             = IDENT , "=" , value ;
 
-burst_expr      = "burst(" ,
-                  "base=" , rate_const , "," ,
-                  "peak=" , rate_const , "," ,
-                  "every=" , DURATION , "," ,
-                  "hold=" , DURATION ,
-                  ")" ;
+replay_stmt      = "replay" , IDENT , "{" , "use" , "from" , STRING , [ ";" ] , "}" ;
 
-timeline_expr   = "timeline" , "{" , { timeline_seg } , "}" ;
-timeline_seg    = DURATION , ".." , DURATION , "=" , rate_const ;
-
-injection_block = "injection" , "{" , { injection_case } , "}" ;
-injection_case  = mode_kw , "<" , PERCENT , ">" , [ "for" , IDENT ] , IDENT , "{" ,
-                    seq_block ,
-                  "}" ;
-mode_kw         = "hit" | "near_miss" | "miss" ;
-
-seq_block       = IDENT , "seq" , "{" , seq_step , { seq_step } , "}" ;
-seq_step        = use_stmt | then_stmt | not_stmt ;
-use_stmt        = "use(" , predicate_list , ")" , "with(" , NUMBER , ")" ;
-then_stmt       = "then" , use_stmt ;
-not_stmt        = "not(" , predicate_list , ")" , "within(" , DURATION , ")" ;
-predicate_list  = predicate , { "," , predicate } ;
-predicate       = IDENT , "=" , literal ;
-
-expect_block    = "expect" , "{" , { expect_stmt } , "}" ;
-expect_stmt     = expect_fn , "(" , IDENT , ")" , cmp_op , expect_value ;
-expect_fn       = "hit" | "near_miss" | "miss" | "precision" | "recall" | "fpr" | "latency_p95" ;
-expect_value    = PERCENT | NUMBER | DURATION ;
-cmp_op          = ">=" | "<=" | ">" | "<" | "==" ;
-
-value           = literal | DURATION ;
-literal         = STRING | NUMBER | "true" | "false" ;
+value            = STRING | NUMBER | DURATION | "true" | "false" | "null"
+                 | json_object | json_array ;
 ```
 
-## 5. 语义定义
+要点：
 
-### 5.1 `#[...]` 场景注解
+- 上面 EBNF 是**规范顺序**；grammar 层与 `wfgen` 的解析循环一致，允许 `background` / `inject` / `replay`
+  按任意顺序出现（`background` / `inject` 是单例块，重复报 VN32）。
+- 注释只支持 `//`；`#` 不是注释，`#[...]` 是场景注解，`<...>` 是场景内联注解。
+- 合法的注解键只有 `duration`（`#[duration=10m]`）与 `seed`（`scenario name<seed=N>`）；
+  键名与值类型的白名单由 `wfgen` 的 VN29 校验（grammar 层不限制）。
+- `for RULE` **必填**。
+- `value_source` 的三种形态：`use(preds)`、`use({json})`（顶层键即字段）、`use from "file"`。
+- `x N` 是"每个实体在该步骤上的条数"。
+- `spread D`、`without(preds) [within D]`、`join <window> as <key>` 见权威文档 §3.5 / §3.8 / §9。
+- `replay` 只接受文件来源（`use from`），**不写** `x N`。
 
-推荐键（可省略，走默认）：
+## 3. 节点名（可供 query / 编辑器使用）
 
-- `duration`: 场景总时长（建议显式填写）。
-- `tick`: 调度粒度，默认 `1s`。
-- `rows`: `auto | N`，默认 `auto`。
-- `emit`: `deterministic | poisson`，默认 `deterministic`。
+| 语法 | 节点 / 字段 |
+|---|---|
+| `use "f"` | `use_declaration` |
+| `scenario N<seed=1> { … }` | `scenario_declaration` `name:`, `scenario_inline_annotations` |
+| `#[duration=10m]` | `scenario_attribute` → `attribute_list` → `attribute` `key:` / `value:` |
+| `background { … }` | `background_block` → `background_stream` `stream:` `rate:` / `entity_distribution` `window:` `field:` |
+| `zipf(pool=1000, …)` | `zipf_argument_list` → `zipf_argument` `key:` `value:` |
+| `gen wave(…)` / `burst(…)` / `timeline { … }` | `rate_expression` → `wave_rate` / `burst_rate` / `timeline_rate`（`timeline_segment`） |
+| `inject { … }` | `inject_block` → `inject_case` `mode:` `entity_count:` `rule:` `stream:` |
+| `hit<sip: 500>` | `inject_mode`，`entity_selector` `field:` |
+| `use(...) x 12` | `use_step` `count:` → `value_source` → `predicate_group` / `inline_json_group` / `file_source` `file:` |
+| `without(...) within 5m` | `without_step` `within:` |
+| `join W as K { … }` | `join_block` `window:` `key:` |
+| `spread 10m` | `spread_statement` `duration:` |
+| `replay W { use from "f" }` | `replay_statement` `window:` |
+| 内联 JSON | `json_object` / `json_pair` `key:` `value:` / `json_array` / `json_string` / `json_number` / `json_null` |
 
-语义：
+## 4. 已移除的旧语法
 
-- `rows=auto`：按 `rate × tick` 计算当前 tick 的事件数。
-- `rows=N`：每个 tick 固定生成 N 行（覆盖 rate 结果）。
-- `emit=deterministic`：每 tick 固定行数。
-- `emit=poisson`：以 `rate` 为期望值进行泊松采样。
+以下旧形态**不再有语法支持**（解析报错），与权威文档 §5.1 的 `VN20` 口径一致：
 
-### 5.2 `traffic`
+| 旧写法 | 现写法 |
+|---|---|
+| `traffic { … }` | `background { … }` |
+| `injection { … }` | `inject { … }` |
+| `hit<30%>`（配额百分比） | `hit<sip: 500>`（显式实体数） |
+| `<field> seq { … }` | 实体字段写在用例头，步骤直接列在体内 |
+| `use(...) with(N)` | `use(...) x N` |
+| `not(...) within(...)` | `without(...) [within D]` |
+| `expect { … }` | 断言由模式承担（`hit` / `near_miss` / `miss`） |
+| `oracle { … }` | 已删除（容差固定） |
 
-- `stream <name> gen ...` 只声明 stream 名，不写 window/alias。
-- window 与字段约束从 `.wfs/.wfl` 推导。
-- `timeline` 段必须连续且不重叠；空洞区间按编译错误处理。
-
-### 5.3 `injection`
-
-- `hit<30%> <stream> { ... }` / `near_miss<10%> ...` / `miss<60%> ...`。
-- 多规则场景可写 `hit<30%> for <rule> <stream> { ... }` 显式指定目标规则；当 `expect` 涉及多个规则时建议显式写 `for`。
-- 同一 `injection` 块中所有占比之和必须 `<= 100%`。
-- `<entity> seq { ... }`：按实体键串联序列。
-- `use(...) with(count)`：
-  - `use(...)` 是字段等值条件（必须显式字段名）；
-  - `use(...)` 的谓词作用域是**当前 step**，不是整个 case 全局；
-  - 不同 step 可对同一字段设置不同值（例如 `dport=80 -> dport=22`），语义应按 step 分别生效；
-  - 同一 step 内重复设置同一字段建议视为配置错误（避免歧义）；
-  - `count` 是该步事件个数；
-  - 当前 AST 未保存 step 级 window；时序约束由场景 duration、stream rate、规则窗口和 `not(...) within(...)` 共同影响；
-  - 多步默认顺序依赖：后一步发生在前一步完成之后。
-- `then use(...) with(count)`：显式顺序语法，当前 parser 支持。
-- `not(...) within(duration)`：parser 支持，但当前 datagen/validator 仍返回“不支持生成”的校验错误；用于 near-miss/缺失类场景的目标语义。
-
-事件生成字段覆盖优先级（从高到低）：
-
-1. entity/key 覆盖（保证同实体聚合）；
-2. 当前 step 的 `use(...)` 谓词；
-3. rule bind filter 推导出的字段约束；
-4. stream 字段生成器（`gen`/`set`/`pick` 等）；
-5. 随机默认生成。
-
-### 5.4 `expect`
-
-以“样本标签 + 规则名”计算质量指标；当前实现会基于生成事件、编译后的 WFL rule plan 和 oracle/verify 链路输出/比对期望告警：
-
-- `hit(rule)`：`label=hit` 样本中，被 `rule` 检出的比例。
-- `near_miss(rule)`：`label=near_miss` 样本中，被 `rule` 误检出的比例。
-- `miss(rule)`：`label=miss` 样本中，被 `rule` 误检出的比例。
-
-约束：
-
-- 百分比值域 `0%..100%`；`latency_p95` 使用 duration。
-- 分母为 0（无对应标签样本）时，判定为配置错误并中止。
-
-## 6. 校验规则（最小集）
-
-- `use` 引用文件必须存在且可解析。
-- `stream` 名必须在 schema/rule 上下文中可解析。
-- 注入标签必须在 `{hit, near_miss, miss}` 中。
-- 注入占比必须在 `(0, 100]`。
-- 同一 `use(...)` step 内同一字段不得重复赋值（发现重复应报错）。
-- `expect` 中引用的规则名必须存在于 `.wfl`。
-
-## 7. 运行闭环
-
-> 当前运行闭环由本仓库的 `wfgen` / `wfl` / `wfusion` CLI 支持。
-
-```text
-wfg + wfs + wfl
-   -> wfgen gen --scenario ... --out ... [--send]
-   -> wfusion run
-   -> actual alerts
-   -> wfgen verify / wfl verify
-   -> expect 判定 + 报告
-```
-
-## 8. 迁移说明
-
-- 旧语法中的 `stream alias from window rate ...`、`inject for ...`、`oracle {...}` 不再作为 新语法 主规范。
-- 新语法 仅保留本文件定义语法。
-
-## 9. 扩展规划（建议）
-
-### P1（优先）
-
-- `seq` 语义扩展：`not(...) within(...)` 的 datagen 支持与严格约束定义。
-- 实体分布扩展：热点（Zipf）与新老实体比例。
-
-已在当前实现中覆盖的项：`precision/recall/fpr/latency_p95`、`then use(...)` 解析。
-
-P1 示例（讨论稿）：
-
-```wfg
-#[duration=30m]
-scenario brute_force_detect<seed=42> {
-  traffic {
-    stream auth_events gen 200/s
-  }
-
-  injection {
-    hit<30%> auth_events {
-      user seq {
-        use(login="failed") with(3)
-        then use(action="port_scan") with(1)
-      }
-    }
-
-    near_miss<10%> auth_events {
-      user seq {
-        use(login="failed") with(2)
-        not(action="port_scan") within(1m)
-      }
-    }
-
-    miss<60%> auth_events {
-      user seq {
-        use(login="success") with(1)
-      }
-    }
-  }
-
-  entity_dist auth_events by user {
-    zipf(alpha=1.2, hot=20%)
-    new_user=5%
-  }
-
-  expect {
-    hit(brute_force_then_scan) >= 95%
-    near_miss(brute_force_then_scan) <= 1%
-    miss(brute_force_then_scan) <= 0.1%
-
-    precision(brute_force_then_scan) >= 99%
-    recall(brute_force_then_scan) >= 95%
-    fpr(brute_force_then_scan) <= 0.5%
-    latency_p95(brute_force_then_scan) <= 2s
-  }
-}
-```
-
-### P2（增强真实性）
-
-- 速率模型扩展：`spike`、`jitter`、`diurnal`（昼夜曲线）。
-- 跨流注入：同一实体在多 stream 的联动序列。
-- 场景矩阵：同一场景的多参数批量运行。
-
-### P3（工程效率）
-
-- 模板化：`template/param` 复用场景片段。
-- 基线对比：与历史结果自动比对回归漂移。
-- 报告输出：自动生成 markdown/html 对比报告。
+因此 grammar 里不再有 `traffic_block` / `injection_case` / `seq_block` / `use_statement` /
+`expect_block`（场景侧）等节点；`expect_block` 仅保留在 `.wfl` 的 `test` 块里。

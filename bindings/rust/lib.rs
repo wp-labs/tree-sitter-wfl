@@ -308,44 +308,47 @@ test anti_join_case for anti_join_rule {
     fn test_wfg_scenario_parse() {
         let scenario = r#"
 use "../schemas/security.wfs"
-use "../rules/brute_force.wfl"
+use "../rules/ssh_brute_force.wfl"
 
 #[duration=10m]
-scenario brute_force_detect<seed=42> {
-    traffic {
-        stream auth_events gen 100/s
-        stream auth_events gen wave(base=80/s, amp=40/s, period=2m, shape=sine)
+scenario ssh_brute<seed=42> {
+    background {
+        stream auth_events gen 50/s
+        stream conn_events gen wave(base=10/s, amp=2/s, period=2m, shape=sine)
+        entity auth_events.sip zipf(pool=1000, exponent=1.1, fresh=0.2)
     }
 
-    injection {
-        hit<30%> auth_events {
-            user seq {
-                use(login="failed") with(3, 1m)
-                use(action="port_scan") with(1, 1m)
-            }
+    inject {
+        hit<sip: 500> for ssh_brute_force auth_events {
+            use(result="failed", service="ssh") x 12
+            spread 10m
         }
 
-        near_miss<10%> auth_events {
-            user seq {
-                use(login="failed") with(2, 1m)
+        near_miss<sip: 200> for chain_attack conn_events {
+            use(action="syn") x 5
+            then use({ "dport": 22, "tags": ["a", "b"] }) x 6
+            without(action="login_ok") within 5m
+            join auction_events as seller {
+                use from "raw/ref.ndjson" x 1
             }
         }
     }
 
-    expect {
-        hit(brute_force_detect) >= 95%
-        near_miss(brute_force_detect) <= 10%
-        miss(brute_force_detect) <= 1%
-    }
+    replay conn_events { use from "raw/monday.ndjson" }
 }
 "#;
         let scenario_tree = parse_ok_with(super::language_wfg(), scenario);
         assert!(scenario_tree.contains("scenario_declaration"));
-        assert!(scenario_tree.contains("traffic_block"));
-        assert!(scenario_tree.contains("injection_case"));
-        assert!(scenario_tree.contains("sequence_block"));
-        assert!(scenario_tree.contains("use_statement"));
-        assert!(scenario_tree.contains("expect_statement"));
+        assert!(scenario_tree.contains("background_block"));
+        assert!(scenario_tree.contains("entity_distribution"));
+        assert!(scenario_tree.contains("inject_case"));
+        assert!(scenario_tree.contains("use_step"));
+        assert!(scenario_tree.contains("spread_statement"));
+        assert!(scenario_tree.contains("without_step"));
+        assert!(scenario_tree.contains("join_block"));
+        assert!(scenario_tree.contains("replay_statement"));
+        assert!(scenario_tree.contains("json_object"));
+        assert!(scenario_tree.contains("file_source"));
     }
 
     #[test]
@@ -477,24 +480,19 @@ use "../rules/ssh_brute_force_alert.wfl"
 
 #[duration=1m]
 scenario ssh_brute_force_alert_case<seed=42> {
-    traffic {
+    background {
         stream xy_system_ssh_log gen 10/s
     }
-    injection {
-        hit<30%> xy_system_ssh_log {
-            source_ip seq {
-                use(tenant_id="tenant01", event_category="auth", operation="failed_login", outcome="failed") with(25)
-            }
+    inject {
+        hit<source_ip: 25> for ssh_brute_force_alert xy_system_ssh_log {
+            use(tenant_id="tenant01", operation="failed_login", outcome="failed") x 25
         }
-    }
-    expect {
-        hit(ssh_brute_force_alert) >= 70%
     }
 }
 "#;
         let scenario_tree = parse_ok_with(super::language_wfg(), scenario);
-        assert!(scenario_tree.contains("injection_case"));
-        assert!(scenario_tree.contains("expect_statement"));
+        assert!(scenario_tree.contains("inject_case"));
+        assert!(scenario_tree.contains("background_stream"));
     }
 
 }

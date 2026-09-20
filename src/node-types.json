@@ -150,6 +150,14 @@
           "named": true
         },
         {
+          "type": "json_array",
+          "named": true
+        },
+        {
+          "type": "json_object",
+          "named": true
+        },
+        {
           "type": "number",
           "named": true
         },
@@ -158,6 +166,51 @@
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "background_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "background_stream",
+          "named": true
+        },
+        {
+          "type": "entity_distribution",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "background_stream",
+    "named": true,
+    "fields": {
+      "rate": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "rate_expression",
+            "named": true
+          }
+        ]
+      },
+      "stream": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -449,6 +502,58 @@
     }
   },
   {
+    "type": "entity_distribution",
+    "named": true,
+    "fields": {
+      "field": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "window": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "zipf_argument_list",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "entity_selector",
+    "named": true,
+    "fields": {
+      "field": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "event_declaration",
     "named": true,
     "fields": {
@@ -513,11 +618,6 @@
         }
       ]
     }
-  },
-  {
-    "type": "expect_metric",
-    "named": true,
-    "fields": {}
   },
   {
     "type": "expect_statement",
@@ -784,6 +884,22 @@
     }
   },
   {
+    "type": "file_source",
+    "named": true,
+    "fields": {
+      "file": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "string",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "final_stage",
     "named": true,
     "fields": {},
@@ -914,7 +1030,7 @@
     }
   },
   {
-    "type": "injection_block",
+    "type": "inject_block",
     "named": true,
     "fields": {},
     "children": {
@@ -922,39 +1038,66 @@
       "required": false,
       "types": [
         {
-          "type": "injection_case",
+          "type": "inject_case",
           "named": true
         }
       ]
     }
   },
   {
-    "type": "injection_case",
+    "type": "inject_body_item",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "join_block",
+          "named": true
+        },
+        {
+          "type": "spread_statement",
+          "named": true
+        },
+        {
+          "type": "use_step",
+          "named": true
+        },
+        {
+          "type": "without_step",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "inject_case",
     "named": true,
     "fields": {
+      "entity_count": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "number",
+            "named": true
+          }
+        ]
+      },
       "mode": {
         "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "injection_mode",
-            "named": true
-          }
-        ]
-      },
-      "percent": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "percentage",
+            "type": "inject_mode",
             "named": true
           }
         ]
       },
       "rule": {
         "multiple": false,
-        "required": false,
+        "required": true,
         "types": [
           {
             "type": "identifier",
@@ -974,20 +1117,43 @@
       }
     },
     "children": {
-      "multiple": false,
-      "required": true,
+      "multiple": true,
+      "required": false,
       "types": [
         {
-          "type": "seq_block",
+          "type": "entity_selector",
+          "named": true
+        },
+        {
+          "type": "inject_body_item",
           "named": true
         }
       ]
     }
   },
   {
-    "type": "injection_mode",
+    "type": "inject_mode",
     "named": true,
     "fields": {}
+  },
+  {
+    "type": "inline_json_group",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "json_array",
+          "named": true
+        },
+        {
+          "type": "json_object",
+          "named": true
+        }
+      ]
+    }
   },
   {
     "type": "input_block",
@@ -1029,6 +1195,42 @@
         },
         {
           "type": "field_assignment",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "join_block",
+    "named": true,
+    "fields": {
+      "key": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "window": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "use_step",
           "named": true
         }
       ]
@@ -1089,6 +1291,102 @@
       "types": [
         {
           "type": "duration",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "json_array",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "json_value",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "json_object",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "json_pair",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "json_pair",
+    "named": true,
+    "fields": {
+      "key": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "json_string",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "json_value",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "json_string",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "json_value",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "json_array",
+          "named": true
+        },
+        {
+          "type": "json_null",
+          "named": true
+        },
+        {
+          "type": "json_number",
+          "named": true
+        },
+        {
+          "type": "json_object",
+          "named": true
+        },
+        {
+          "type": "json_string",
           "named": true
         }
       ]
@@ -1728,6 +2026,21 @@
     }
   },
   {
+    "type": "predicate_group",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "field_predicate_list",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "preset_angle_value",
     "named": true,
     "fields": {},
@@ -1946,6 +2259,32 @@
     }
   },
   {
+    "type": "replay_statement",
+    "named": true,
+    "fields": {
+      "window": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "file_source",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "rule_declaration",
     "named": true,
     "fields": {
@@ -2046,15 +2385,15 @@
       "required": true,
       "types": [
         {
-          "type": "injection_block",
+          "type": "background_block",
           "named": true
         },
         {
-          "type": "scenario_expect_block",
+          "type": "inject_block",
           "named": true
         },
         {
-          "type": "traffic_block",
+          "type": "replay_statement",
           "named": true
         }
       ]
@@ -2095,75 +2434,6 @@
     }
   },
   {
-    "type": "scenario_expect_block",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "scenario_expect_statement",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "scenario_expect_statement",
-    "named": true,
-    "fields": {
-      "metric": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "expect_metric",
-            "named": true
-          }
-        ]
-      },
-      "rule": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
-      "value": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "duration",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "comparison_operator",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "scenario_inline_annotations",
     "named": true,
     "fields": {},
@@ -2188,58 +2458,6 @@
       "types": [
         {
           "type": "expression",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "seq_block",
-    "named": true,
-    "fields": {
-      "entity": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "seq_step",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "seq_not_step",
-    "named": true,
-    "fields": {
-      "within": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "duration",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": false,
-      "required": false,
-      "types": [
-        {
-          "type": "field_predicate_list",
           "named": true
         }
       ]
@@ -2274,61 +2492,6 @@
         },
         {
           "type": "step_branch",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "seq_step",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "seq_not_step",
-          "named": true
-        },
-        {
-          "type": "seq_use_step",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "seq_use_step",
-    "named": true,
-    "fields": {
-      "count": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "number",
-            "named": true
-          }
-        ]
-      },
-      "within": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "duration",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": false,
-      "required": false,
-      "types": [
-        {
-          "type": "field_predicate_list",
           "named": true
         }
       ]
@@ -2416,6 +2579,22 @@
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "spread_statement",
+    "named": true,
+    "fields": {
+      "duration": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "duration",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -2615,6 +2794,11 @@
     }
   },
   {
+    "type": "string",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "string_array",
     "named": true,
     "fields": {},
@@ -2755,47 +2939,6 @@
     }
   },
   {
-    "type": "traffic_block",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "traffic_stream",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "traffic_stream",
-    "named": true,
-    "fields": {
-      "rate": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "rate_expression",
-            "named": true
-          }
-        ]
-      },
-      "stream": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "unary_expression",
     "named": true,
     "fields": {},
@@ -2813,13 +2956,63 @@
   {
     "type": "use_declaration",
     "named": true,
+    "fields": {
+      "path": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "string",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "use_step",
+    "named": true,
+    "fields": {
+      "count": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "number",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "value_source",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "value_source",
+    "named": true,
     "fields": {},
     "children": {
       "multiple": false,
       "required": true,
       "types": [
         {
-          "type": "string",
+          "type": "file_source",
+          "named": true
+        },
+        {
+          "type": "inline_json_group",
+          "named": true
+        },
+        {
+          "type": "predicate_group",
           "named": true
         }
       ]
@@ -2944,6 +3137,32 @@
     }
   },
   {
+    "type": "without_step",
+    "named": true,
+    "fields": {
+      "within": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "duration",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "field_predicate_list",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "yield_clause",
     "named": true,
     "fields": {},
@@ -3035,6 +3254,47 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "zipf_argument",
+    "named": true,
+    "fields": {
+      "key": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "number",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "zipf_argument_list",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "zipf_argument",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -3174,6 +3434,10 @@
     "named": false
   },
   {
+    "type": "background",
+    "named": false
+  },
+  {
     "type": "base",
     "named": false
   },
@@ -3299,7 +3563,7 @@
     "named": false
   },
   {
-    "type": "fpr",
+    "type": "from",
     "named": false
   },
   {
@@ -3343,7 +3607,7 @@
     "named": false
   },
   {
-    "type": "injection",
+    "type": "inject",
     "named": false
   },
   {
@@ -3359,15 +3623,19 @@
     "named": false
   },
   {
+    "type": "json_null",
+    "named": true
+  },
+  {
+    "type": "json_number",
+    "named": true
+  },
+  {
     "type": "key",
     "named": false
   },
   {
     "type": "last",
-    "named": false
-  },
-  {
-    "type": "latency_p95",
     "named": false
   },
   {
@@ -3455,15 +3723,7 @@
     "named": false
   },
   {
-    "type": "percentage",
-    "named": true
-  },
-  {
     "type": "period",
-    "named": false
-  },
-  {
-    "type": "precision",
     "named": false
   },
   {
@@ -3475,7 +3735,7 @@
     "named": true
   },
   {
-    "type": "recall",
+    "type": "replay",
     "named": false
   },
   {
@@ -3519,6 +3779,10 @@
     "named": false
   },
   {
+    "type": "spread",
+    "named": false
+  },
+  {
     "type": "stats",
     "named": false
   },
@@ -3529,10 +3793,6 @@
   {
     "type": "stream_tag",
     "named": false
-  },
-  {
-    "type": "string",
-    "named": true
   },
   {
     "type": "sum",
@@ -3571,10 +3831,6 @@
     "named": false
   },
   {
-    "type": "traffic",
-    "named": false
-  },
-  {
     "type": "transform",
     "named": true
   },
@@ -3607,15 +3863,23 @@
     "named": false
   },
   {
-    "type": "with",
-    "named": false
-  },
-  {
     "type": "within",
     "named": false
   },
   {
+    "type": "without",
+    "named": false
+  },
+  {
+    "type": "x",
+    "named": false
+  },
+  {
     "type": "yield",
+    "named": false
+  },
+  {
+    "type": "zipf",
     "named": false
   },
   {

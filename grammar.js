@@ -43,7 +43,7 @@ module.exports = grammar({
 
     comment: (_$) => token(seq("//", /.*/)),
 
-    use_declaration: ($) => seq("use", $.string),
+    use_declaration: ($) => seq("use", field("path", $.string)),
 
     window_declaration: ($) =>
       seq(
@@ -573,7 +573,7 @@ module.exports = grammar({
       ),
 
     scenario_body_item: ($) =>
-      choice($.traffic_block, $.injection_block, $.scenario_expect_block),
+      choice($.background_block, $.inject_block, $.replay_statement),
 
     scenario_attribute: ($) => seq("#[", $.attribute_list, "]"),
 
@@ -586,12 +586,25 @@ module.exports = grammar({
       seq(field("key", $.identifier), "=", field("value", $.attribute_value)),
 
     attribute_value: ($) =>
-      choice($.string, $.number, $.duration, $.boolean, $.identifier),
+      choice(
+        $.string,
+        $.number,
+        $.duration,
+        $.boolean,
+        $.identifier,
+        $.json_object,
+        $.json_array,
+      ),
 
-    traffic_block: ($) =>
-      seq("traffic", "{", repeat1($.traffic_stream), "}"),
+    background_block: ($) =>
+      seq(
+        "background",
+        "{",
+        repeat(choice($.background_stream, $.entity_distribution)),
+        "}",
+      ),
 
-    traffic_stream: ($) =>
+    background_stream: ($) =>
       seq(
         "stream",
         field("stream", $.identifier),
@@ -599,6 +612,25 @@ module.exports = grammar({
         field("rate", $.rate_expression),
         optional(";"),
       ),
+
+    entity_distribution: ($) =>
+      seq(
+        "entity",
+        field("window", $.identifier),
+        ".",
+        field("field", $.identifier),
+        "zipf",
+        "(",
+        $.zipf_argument_list,
+        ")",
+        optional(";"),
+      ),
+
+    zipf_argument_list: ($) =>
+      seq($.zipf_argument, repeat(seq(",", $.zipf_argument))),
+
+    zipf_argument: ($) =>
+      seq(field("key", $.identifier), "=", field("value", $.number)),
 
     rate_expression: ($) =>
       choice($.rate, $.wave_rate, $.burst_rate, $.timeline_rate),
@@ -657,60 +689,51 @@ module.exports = grammar({
         optional(";"),
       ),
 
-    injection_block: ($) =>
-      seq("injection", "{", repeat($.injection_case), "}"),
+    // --- inject：`inject { hit<sip: 500> for RULE STREAM { use(...) x 12; spread 10m } }` ---
+    inject_block: ($) =>
+      seq("inject", "{", repeat($.inject_case), "}"),
 
-    injection_case: ($) =>
+    inject_case: ($) =>
       seq(
-        field("mode", $.injection_mode),
+        field("mode", $.inject_mode),
         "<",
-        field("percent", $.percentage),
+        optional($.entity_selector),
+        field("entity_count", $.number),
         ">",
-        optional(seq("for", field("rule", $.identifier))),
+        "for",
+        field("rule", $.identifier),
         field("stream", $.identifier),
         "{",
-        $.seq_block,
+        repeat($.inject_body_item),
         "}",
       ),
 
-    injection_mode: (_$) => choice("hit", "near_miss", "miss"),
+    entity_selector: ($) => seq(field("field", $.identifier), ":"),
 
-    seq_block: ($) =>
-      seq(
-        field("entity", $.identifier),
-        "seq",
-        "{",
-        repeat1($.seq_step),
-        "}",
-      ),
+    inject_mode: (_$) => choice("hit", "near_miss", "miss"),
 
-    seq_step: ($) => choice($.seq_use_step, $.seq_not_step),
+    inject_body_item: ($) =>
+      choice($.use_step, $.without_step, $.join_block, $.spread_statement),
 
-    seq_use_step: ($) =>
+    use_step: ($) =>
       seq(
         optional("then"),
         "use",
-        "(",
-        optional($.field_predicate_list),
-        ")",
-        "with",
-        "(",
+        $.value_source,
+        "x",
         field("count", $.number),
-        optional(seq(",", field("within", $.duration))),
-        ")",
+        optional(";"),
       ),
 
-    seq_not_step: ($) =>
-      seq(
-        "not",
-        "(",
-        optional($.field_predicate_list),
-        ")",
-        "within",
-        "(",
-        field("within", $.duration),
-        ")",
-      ),
+    value_source: ($) =>
+      choice($.predicate_group, $.inline_json_group, $.file_source),
+
+    predicate_group: ($) => seq("(", $.field_predicate_list, ")"),
+
+    inline_json_group: ($) =>
+      seq("(", choice($.json_object, $.json_array), ")"),
+
+    file_source: ($) => seq("from", field("file", $.string)),
 
     field_predicate_list: ($) =>
       seq($.field_predicate, repeat(seq(",", $.field_predicate))),
@@ -718,22 +741,77 @@ module.exports = grammar({
     field_predicate: ($) =>
       seq(field("field", $.identifier), "=", field("value", $.attribute_value)),
 
-    scenario_expect_block: ($) =>
-      seq("expect", "{", repeat($.scenario_expect_statement), "}"),
-
-    scenario_expect_statement: ($) =>
+    without_step: ($) =>
       seq(
-        field("metric", $.expect_metric),
+        optional("then"),
+        "without",
         "(",
-        field("rule", $.identifier),
+        $.field_predicate_list,
         ")",
-        $.comparison_operator,
-        field("value", choice($.percentage, $.duration, $.number)),
+        optional(seq("within", field("within", $.duration))),
         optional(";"),
       ),
 
-    expect_metric: (_$) =>
-      choice("hit", "near_miss", "miss", "precision", "recall", "fpr", "latency_p95"),
+    join_block: ($) =>
+      seq(
+        "join",
+        field("window", $.identifier),
+        "as",
+        field("key", $.identifier),
+        "{",
+        repeat($.use_step),
+        "}",
+      ),
+
+    spread_statement: ($) =>
+      seq("spread", field("duration", $.duration), optional(";")),
+
+    // --- replay：`replay conn_events { use from "raw/monday.ndjson" }` ---
+    replay_statement: ($) =>
+      seq(
+        "replay",
+        field("window", $.identifier),
+        "{",
+        "use",
+        $.file_source,
+        optional(";"),
+        "}",
+      ),
+
+    // --- inline JSON values (`use({...})`)，顶层键即字段 ---
+    json_value: ($) =>
+      choice(
+        $.json_object,
+        $.json_array,
+        $.json_string,
+        $.json_number,
+        $.boolean,
+        $.json_null,
+      ),
+
+    json_object: ($) =>
+      seq(
+        "{",
+        optional(seq($.json_pair, repeat(seq(",", $.json_pair)), optional(","))),
+        "}",
+      ),
+
+    json_pair: ($) =>
+      seq(field("key", $.json_string), ":", field("value", $.json_value)),
+
+    json_array: ($) =>
+      seq(
+        "[",
+        optional(seq($.json_value, repeat(seq(",", $.json_value)), optional(","))),
+        "]",
+      ),
+
+    json_string: (_$) =>
+      token(seq('"', repeat(choice(/[^"\\]/, /\\./)), '"')),
+
+    json_number: (_$) => token(/-?\d+(\.\d+)?([eE][+-]?\d+)?/),
+
+    json_null: (_$) => "null",
 
     input_block: ($) =>
       seq("input", "{", repeat($.input_statement), "}"),
@@ -995,7 +1073,7 @@ module.exports = grammar({
     comparison_operator: (_$) =>
       choice("==", "!=", "<", ">", "<=", ">="),
 
-    percentage: (_$) => token(/\d+(\.\d+)?%/),
+
 
     rate: (_$) => token(/\d+(\.\d+)?\/[smh]/),
 

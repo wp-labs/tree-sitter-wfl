@@ -224,13 +224,11 @@ use "../../rules/rat_propagation/rat_propagation.wfl"
 
 #[duration=10s]
 scenario sandbox<seed=42> {
-  traffic { stream auth_events gen 5/s }
+  background { stream auth_events gen 5/s }
 
-  injection {
-    hit<100%> for rat_propagation_auth auth_events {
-      sip seq {
-        use(result="success", service="ssh", dport=22, dip="192.168.1.10") with(10)
-      }
+  inject {
+    hit<sip: 100> for rat_propagation_auth auth_events {
+      use(result="success", service="ssh", dport=22, dip="192.168.1.10") x 10
     }
   }
 }
@@ -241,20 +239,14 @@ use "../rules/ssh_brute_force_alert.wfl"
 
 #[duration=1m]
 scenario ssh_brute_force_alert_case<seed=42> {
-    traffic {
+    background {
         stream xy_system_ssh_log gen 10/s
     }
 
-    injection {
-        hit<30%> xy_system_ssh_log {
-            source_ip seq {
-                use(tenant_id="tenant01", event_category="auth", operation="failed_login", outcome="failed", observer_product="sshd", target_host="ent-bas-zerotrust-01", target_user="root") with(25)
-            }
+    inject {
+        hit<source_ip: 25> for ssh_brute_force_alert xy_system_ssh_log {
+            use(tenant_id="tenant01", event_category="auth", operation="failed_login", outcome="failed", observer_product="sshd", target_host="ent-bas-zerotrust-01", target_user="root") x 25
         }
-    }
-
-    expect {
-        hit(ssh_brute_force_alert) >= 70%
     }
 }
 "#;
@@ -263,32 +255,32 @@ scenario ssh_brute_force_alert_case<seed=42> {
     fn formats_sample_wfg() {
         let formatted = format(NETWORK_WFG).unwrap();
         assert!(formatted.contains("#[duration=10s]\nscenario sandbox<seed=42> {\n"));
-        assert!(formatted.contains("    traffic { stream auth_events gen 5/s }\n"));
-        assert!(formatted.contains("        hit<100%> for rat_propagation_auth auth_events {\n"));
-        assert!(formatted.contains("                use(result=\"success\", service=\"ssh\", dport=22, dip=\"192.168.1.10\") with(10)\n"));
+        assert!(formatted.contains("    background { stream auth_events gen 5/s }\n"));
+        assert!(formatted.contains("        hit<sip: 100> for rat_propagation_auth auth_events {\n"));
+        assert!(formatted.contains("            use(result=\"success\", service=\"ssh\", dport=22, dip=\"192.168.1.10\") x 10\n"));
     }
 
     #[test]
     fn formats_wfusion_scenario() {
         let formatted = format(WFUSION_SCENARIO_WFG).unwrap();
         assert!(formatted.contains("scenario ssh_brute_force_alert_case<seed=42> {\n"));
-        assert!(formatted.contains("    traffic {\n        stream xy_system_ssh_log gen 10/s\n    }\n"));
-        assert!(formatted.contains("        hit<30%> xy_system_ssh_log {\n"));
-        assert!(formatted.contains("                use(tenant_id=\"tenant01\", event_category=\"auth\", operation=\"failed_login\", outcome=\"failed\", observer_product=\"sshd\", target_host=\"ent-bas-zerotrust-01\", target_user=\"root\") with(25)\n"));
+        assert!(formatted.contains("    background {\n        stream xy_system_ssh_log gen 10/s\n    }\n"));
+        assert!(formatted.contains("        hit<source_ip: 25> for ssh_brute_force_alert xy_system_ssh_log {\n"));
+        assert!(formatted.contains("            use(tenant_id=\"tenant01\", event_category=\"auth\", operation=\"failed_login\", outcome=\"failed\", observer_product=\"sshd\", target_host=\"ent-bas-zerotrust-01\", target_user=\"root\") x 25\n"));
     }
 
     #[test]
     fn formats_indentation() {
-        let input = "scenario x {\ntraffic {\nstream a gen 1/s\n}\n}\n";
-        let expected = "scenario x {\n    traffic {\n        stream a gen 1/s\n    }\n}\n";
+        let input = "scenario x {\nbackground {\nstream a gen 1/s\n}\n}\n";
+        let expected = "scenario x {\n    background {\n        stream a gen 1/s\n    }\n}\n";
         assert_eq!(format(input).unwrap(), expected);
     }
 
     #[test]
     fn supports_custom_indent_and_fallback() {
-        let input = "scenario x {\ntraffic {\nstream a gen 1/s\n}\n}\n";
+        let input = "scenario x {\nbackground {\nstream a gen 1/s\n}\n}\n";
         let formatted = format_with_indent(input, 2).unwrap();
-        assert!(formatted.contains("\n  traffic {\n"));
+        assert!(formatted.contains("\n  background {\n"));
         assert_eq!(format_or_original("scenario x {"), "scenario x {");
     }
 

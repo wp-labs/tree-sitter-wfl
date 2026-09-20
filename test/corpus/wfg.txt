@@ -1,38 +1,39 @@
 ==================
-Scenario Traffic Injection Expect
+Scenario Background Inject Replay
 ==================
 
 use "../schemas/security.wfs"
-use "../rules/brute_force.wfl"
+use "../rules/ssh_brute_force.wfl"
 
 #[duration=10m]
-scenario brute_force_detect<seed=42> {
-  traffic {
-    stream auth_events gen 100/s
-    stream auth_events gen wave(base=80/s, amp=40/s, period=2m, shape=sine)
+scenario ssh_brute<seed=42> {
+  background {
+    stream auth_events gen 50/s
+    stream conn_events gen wave(base=10/s, amp=2/s, period=2m, shape=sine)
+    entity auth_events.sip zipf(pool=1000, exponent=1.1, fresh=0.2)
   }
 
-  injection {
-    hit<30%> for brute_force_then_scan auth_events {
-      user seq {
-        use(login="failed") with(3)
-        then use(action="port_scan") with(1)
+  inject {
+    hit<sip: 500> for ssh_brute_force auth_events {
+      use(result="failed", service="ssh") x 12
+      spread 10m
+    }
+
+    near_miss<sip: 200> for chain_attack conn_events {
+      use(action="syn") x 5
+      then use({ "dport": 22, "tags": ["a", "b"], "nested": { "k": null } }) x 6
+      without(action="login_ok") within 5m
+      join auction_events as seller {
+        use from "raw/ref.ndjson" x 1
       }
     }
 
-    near_miss<10%> auth_events {
-      user seq {
-        use(login="failed") with(2)
-        not(action="port_scan") within(1m)
-      }
+    miss<100> for ssh_brute_force auth_events {
+      use(result="success") x 1
     }
   }
 
-  expect {
-    hit(brute_force_then_scan) >= 95%
-    precision(brute_force_then_scan) >= 99%
-    latency_p95(brute_force_then_scan) <= 2s
-  }
+  replay conn_events { use from "raw/monday.ndjson" }
 }
 
 ---
@@ -57,80 +58,235 @@ scenario brute_force_detect<seed=42> {
           (attribute_value
             (number)))))
     (scenario_body_item
-      (traffic_block
-        (traffic_stream
+      (background_block
+        (background_stream
           (identifier)
           (rate_expression
             (rate)))
-        (traffic_stream
+        (background_stream
           (identifier)
           (rate_expression
             (wave_rate
               (rate)
               (rate)
               (duration)
-              (identifier))))))
+              (identifier))))
+        (entity_distribution
+          (identifier)
+          (identifier)
+          (zipf_argument_list
+            (zipf_argument
+              (identifier)
+              (number))
+            (zipf_argument
+              (identifier)
+              (number))
+            (zipf_argument
+              (identifier)
+              (number))))))
     (scenario_body_item
-      (injection_block
-        (injection_case
-          (injection_mode)
-          (percentage)
+      (inject_block
+        (inject_case
+          (inject_mode)
+          (entity_selector
+            (identifier))
+          (number)
           (identifier)
           (identifier)
-          (seq_block
-            (identifier)
-            (seq_step
-              (seq_use_step
-                (field_predicate_list
-                  (field_predicate
-                    (identifier)
-                    (attribute_value
-                      (string))))
-                (number)))
-            (seq_step
-              (seq_use_step
-                (field_predicate_list
-                  (field_predicate
-                    (identifier)
-                    (attribute_value
-                      (string))))
+          (inject_body_item
+            (use_step
+              (value_source
+                (predicate_group
+                  (field_predicate_list
+                    (field_predicate
+                      (identifier)
+                      (attribute_value
+                        (string)))
+                    (field_predicate
+                      (identifier)
+                      (attribute_value
+                        (string))))))
+              (number)))
+          (inject_body_item
+            (spread_statement
+              (duration))))
+        (inject_case
+          (inject_mode)
+          (entity_selector
+            (identifier))
+          (number)
+          (identifier)
+          (identifier)
+          (inject_body_item
+            (use_step
+              (value_source
+                (predicate_group
+                  (field_predicate_list
+                    (field_predicate
+                      (identifier)
+                      (attribute_value
+                        (string))))))
+              (number)))
+          (inject_body_item
+            (use_step
+              (value_source
+                (inline_json_group
+                  (json_object
+                    (json_pair
+                      (json_string)
+                      (json_value
+                        (json_number)))
+                    (json_pair
+                      (json_string)
+                      (json_value
+                        (json_array
+                          (json_value
+                            (json_string))
+                          (json_value
+                            (json_string)))))
+                    (json_pair
+                      (json_string)
+                      (json_value
+                        (json_object
+                          (json_pair
+                            (json_string)
+                            (json_value
+                              (json_null)))))))))
+              (number)))
+          (inject_body_item
+            (without_step
+              (field_predicate_list
+                (field_predicate
+                  (identifier)
+                  (attribute_value
+                    (string))))
+              (duration)))
+          (inject_body_item
+            (join_block
+              (identifier)
+              (identifier)
+              (use_step
+                (value_source
+                  (file_source
+                    (string)))
                 (number)))))
-        (injection_case
-          (injection_mode)
-          (percentage)
+        (inject_case
+          (inject_mode)
+          (number)
           (identifier)
-          (seq_block
-            (identifier)
-            (seq_step
-              (seq_use_step
-                (field_predicate_list
-                  (field_predicate
-                    (identifier)
-                    (attribute_value
-                      (string))))
-                (number)))
-            (seq_step
-              (seq_not_step
-                (field_predicate_list
-                  (field_predicate
-                    (identifier)
-                    (attribute_value
-                      (string))))
-                (duration)))))))
+          (identifier)
+          (inject_body_item
+            (use_step
+              (value_source
+                (predicate_group
+                  (field_predicate_list
+                    (field_predicate
+                      (identifier)
+                      (attribute_value
+                        (string))))))
+              (number))))))
     (scenario_body_item
-      (scenario_expect_block
-        (scenario_expect_statement
-          (expect_metric)
+      (replay_statement
+        (identifier)
+        (file_source
+          (string))))))
+
+==================
+Scenario Minimal Background
+==================
+
+use "../schemas/security.wfs"
+
+scenario ssh_brute_quick {
+  background {
+    stream auth_events gen 50/s
+  }
+}
+
+---
+
+(source_file
+  (use_declaration
+    (string))
+  (scenario_declaration
+    (identifier)
+    (scenario_body_item
+      (background_block
+        (background_stream
           (identifier)
-          (comparison_operator)
-          (percentage))
-        (scenario_expect_statement
-          (expect_metric)
+          (rate_expression
+            (rate)))))))
+
+==================
+Scenario Inline JSON Containers
+==================
+
+scenario json_shapes {
+  background { stream conn_events gen 1/s }
+
+  inject {
+    hit<1> for r conn_events {
+      use([{ "a": 1 }, { "a": 2 }]) x 1
+      then use(kind=[1, 2], nested={ "k": true }) x 1
+    }
+  }
+}
+
+---
+
+(source_file
+  (scenario_declaration
+    (identifier)
+    (scenario_body_item
+      (background_block
+        (background_stream
           (identifier)
-          (comparison_operator)
-          (percentage))
-        (scenario_expect_statement
-          (expect_metric)
+          (rate_expression
+            (rate)))))
+    (scenario_body_item
+      (inject_block
+        (inject_case
+          (inject_mode)
+          (number)
           (identifier)
-          (comparison_operator)
-          (duration))))))
+          (identifier)
+          (inject_body_item
+            (use_step
+              (value_source
+                (inline_json_group
+                  (json_array
+                    (json_value
+                      (json_object
+                        (json_pair
+                          (json_string)
+                          (json_value
+                            (json_number)))))
+                    (json_value
+                      (json_object
+                        (json_pair
+                          (json_string)
+                          (json_value
+                            (json_number))))))))
+              (number)))
+          (inject_body_item
+            (use_step
+              (value_source
+                (predicate_group
+                  (field_predicate_list
+                    (field_predicate
+                      (identifier)
+                      (attribute_value
+                        (json_array
+                          (json_value
+                            (json_number))
+                          (json_value
+                            (json_number)))))
+                    (field_predicate
+                      (identifier)
+                      (attribute_value
+                        (json_object
+                          (json_pair
+                            (json_string)
+                            (json_value
+                              (boolean)))))))))
+              (number))))))))
