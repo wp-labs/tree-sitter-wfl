@@ -53,11 +53,12 @@
 
 > WFL 是前端语言；真正执行的是 Core IR。语法可以演进，语义内核不漂移。
 
-### 2.1 Core IR 四原语（唯一真相源）
+### 2.1 Core IR 五原语（唯一真相源）
 1. `Bind`：绑定事件源（window + filter）。
-2. `Match`：按 key+duration 维护状态机并求值步骤。
-3. `Join`：对匹配上下文做 LEFT JOIN enrich。
-4. `Yield`：写入目标 window（含系统字段）。
+2. `Match`：按 key+duration 维护状态机并求值步骤（序列/状态机检测）。
+3. `Stats`：按 key+duration 维护分组聚合度量（列式统计执行器，对应统计/聚合类查询，如 NEXMark q13–q18）。
+4. `Join`：对匹配上下文做 LEFT JOIN enrich。
+5. `Yield`：写入目标 window（含系统字段）。
 
 ### 2.2 语法糖策略
 - `|>`、`conv`、隐式 window 都是语法糖。
@@ -70,7 +71,7 @@
 
 ### 3.1 文件职责
 - `windows.wfs`：逻辑数据定义（window、field、time、over）。
-- `rules.wfl`：检测逻辑（bind/match/join/yield）。
+- `rules.wfl`：检测逻辑（bind/match/stats/join/yield）。
 - `runtime.toml`：物理参数（mode、max_bytes、watermark、sinks）。
 
 ### 3.2 RulePack 入口
@@ -163,7 +164,7 @@ runtime: runtime/wfusion.toml
 
 ### 4.2 行为分析能力扩展（规划）
 
-> 以下能力用于支持实体行为分析场景（用户会话建模、行为基线、风险评分），**不影响 Core IR 四原语和五阶段管道结构**。所有新能力均为函数/表达式/窗口模式/实体声明/特征派生扩展，编译器将新语法 desugar 到现有 Bind/Match/Join/Yield 框架内执行。
+> 以下能力用于支持实体行为分析场景（用户会话建模、行为基线、风险评分），**不影响 Core IR 五原语和五阶段管道结构**。所有新能力均为函数/表达式/窗口模式/实体声明/特征派生扩展，编译器将新语法 desugar 到现有 Bind/Match/Stats/Join/Yield 框架内执行。
 
 #### 4.2.1 L2 行为分析基础
 
@@ -220,7 +221,7 @@ runtime: runtime/wfusion.toml
 
 | 组件 | 是否变更 | 说明 |
 |------|:--------:|------|
-| Core IR 四原语 | 否 | Bind/Match/Join/Yield 不变 |
+| Core IR 五原语 | 否 | Bind/Match/Stats/Join/Yield 不变 |
 | 主执行链 | 调整 | 执行链统一为 BIND→SCOPE→JOIN→ENTITY→YIELD→CONV；其中 ENTITY 为声明位，不引入独立计算算子 |
 | 表达式求值器 | 扩展 | 新增 `if/then/else` 节点、新内置函数 |
 | WindowStore | 扩展 | 新增 session window 模式 |
@@ -1748,7 +1749,7 @@ test dns_no_response_timeout for dns_no_response {
 - OR 分支、`on close`、join enrich、baseline、conv。
 
 ### 14.2 收敛改进
-- 统一到 Core IR 四原语。
+- 统一到 Core IR 五原语。
 - 消除空 source step 歧义。
 - 语法糖全部 desugar，不进运行时。
 - L1/L2/L3 分层上线，避免首版过载。

@@ -393,3 +393,12 @@ rule ssh_brute_force_alert {
         assert!(matches!(err, WflFormatError::UnclosedBrace { .. }));
     }
 }
+
+    #[test]
+    fn formats_chain_rule() {
+        let input = "rule chain_demo {\nevents {\nscan : fw_events\nlogin : auth_events\n}\nmatch<sip:30m> {\nchain {\nhas scan;\nhas login within 10m;\nnot has fail within 5m;\n}\n}\n-> score(80.0)\nentity(ip, scan.sip)\nyield out (x = scan.sip)\n}\n";
+        let formatted = format(input).unwrap();
+        assert!(formatted.contains("    match<sip:30m> {\n        chain {\n            has scan;\n"));
+        assert!(formatted.contains("            has login within 10m;\n"));
+        assert!(formatted.contains("            not has fail within 5m;\n"));
+    }
