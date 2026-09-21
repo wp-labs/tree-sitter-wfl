@@ -590,6 +590,40 @@
     }
   },
   {
+    "type": "event_seq_step",
+    "named": true,
+    "fields": {
+      "alias": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "duration",
+          "named": true
+        },
+        {
+          "type": "expression",
+          "named": true
+        },
+        {
+          "type": "step_branch",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "events_block",
     "named": true,
     "fields": {},
@@ -1543,10 +1577,6 @@
         {
           "type": "on_event_block",
           "named": true
-        },
-        {
-          "type": "on_event_mode_block",
-          "named": true
         }
       ]
     }
@@ -1790,37 +1820,15 @@
       "required": true,
       "types": [
         {
+          "type": "event_seq_step",
+          "named": true
+        },
+        {
           "type": "match_step",
           "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "on_event_mode_block",
-    "named": true,
-    "fields": {
-      "mode": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "any",
-            "named": false
-          },
-          {
-            "type": "seq",
-            "named": false
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
+        },
         {
-          "type": "seq_rule_step",
+          "type": "seq_modifiers",
           "named": true
         }
       ]
@@ -2464,38 +2472,9 @@
     }
   },
   {
-    "type": "seq_rule_step",
+    "type": "seq_modifiers",
     "named": true,
-    "fields": {
-      "alias": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "duration",
-          "named": true
-        },
-        {
-          "type": "expression",
-          "named": true
-        },
-        {
-          "type": "step_branch",
-          "named": true
-        }
-      ]
-    }
+    "fields": {}
   },
   {
     "type": "source_expression",

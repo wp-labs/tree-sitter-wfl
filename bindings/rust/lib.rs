@@ -84,15 +84,20 @@ pub const WFS_EDITOR_ASSET_MANIFEST: &str = include_str!("../../editor/wfs/asset
 // pub const LOCALS_QUERY: &str = include_str!("../../queries/locals.scm");
 // pub const TAGS_QUERY: &str = include_str!("../../queries/tags.scm");
 
-pub use format::{format, format_or_original, format_with_indent, WflFormatError, WflFormatter};
+pub use format::{
+    format, format_or_original, format_syntax_tree, format_with_indent, WflFormatError,
+    WflFormatter,
+};
 pub use format::{
     format as format_wfl,
     format_or_original as format_wfl_or_original,
+    format_syntax_tree as format_wfl_syntax_tree,
     format_with_indent as format_wfl_with_indent,
 };
 pub use format::wfg::{
     format as format_wfg,
     format_or_original as format_wfg_or_original,
+    format_syntax_tree as format_wfg_syntax_tree,
     format_with_indent as format_wfg_with_indent,
     WfgFormatError,
     WfgFormatter,
@@ -100,6 +105,7 @@ pub use format::wfg::{
 pub use format::wfs::{
     format as format_wfs,
     format_or_original as format_wfs_or_original,
+    format_syntax_tree as format_wfs_syntax_tree,
     format_with_indent as format_wfs_with_indent,
     WfsFormatError,
     WfsFormatter,
@@ -178,6 +184,13 @@ mod tests {
         assert!(super::WFL_COMPLETION_BUNDLE.contains("\"language\": \"wfl\""));
         assert!(super::WFG_COMPLETION_BUNDLE.contains("\"language\": \"wfg\""));
         assert!(super::WFS_COMPLETION_BUNDLE.contains("\"language\": \"wfs\""));
+        assert!(super::WFL_COMPLETION_BUNDLE.contains("\"context\":[\"wfl.root\"]"));
+        assert!(super::WFL_COMPLETION_BUNDLE.contains("\"label\":\"window.has\""));
+        assert!(super::WFL_COMPLETION_BUNDLE.contains("\"label\":\"percentile\""));
+        assert!(super::WFL_COMPLETION_BUNDLE.contains("\"label\":\"hit[i].field\""));
+        assert!(super::WFS_COMPLETION_BUNDLE.contains("\"context\": [\"wfs.root\"]"));
+        assert!(super::WFS_COMPLETION_BUNDLE.contains("\"label\": \"array/T\""));
+        assert!(super::WFS_COMPLETION_BUNDLE.contains("\"label\": \"输出窗口\""));
     }
 
     #[test]
@@ -428,6 +441,26 @@ rule structured_output {
         assert!(source_tree.contains("array_expression"));
         assert!(source_tree.contains("object_type"));
         assert!(source_tree.contains("array_type"));
+    }
+
+    #[test]
+    fn test_global_yield_preset_parse() {
+        let source = r#"
+yield preset base_alerts (
+    alert_id = concat("alert_", @__wfu_id),
+    workflow_status = "NEW",
+    disposition_status = "",
+    created_time = strftime(@emit_time),
+    first_seen = strftime(@event_first_time),
+    last_seen = strftime(@event_last_time),
+    incident_ids = "",
+)
+"#;
+        let source_tree = parse_ok_with(super::language_wfl(), source);
+        assert!(source_tree.contains("preset_declaration"));
+        assert!(source_tree.contains("named_argument"));
+        assert!(source_tree.contains("function_call"));
+        assert!(source_tree.contains("derive_reference"));
     }
 
     #[test]

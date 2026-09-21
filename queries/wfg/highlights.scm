@@ -59,6 +59,12 @@
 (rate) @number
 (boolean) @constant.builtin
 (json_null) @constant.builtin
+(json_number) @number
+
+[ "(" ")" "{" "}" "<" ">" ] @punctuation.bracket
+[ "," "=" ] @punctuation.delimiter
+"#[" @attribute
+".." @operator
 
 ; --- identifiers by role ---
 (scenario_declaration name: (identifier) @function.definition)
@@ -79,5 +85,6 @@
 
 (attribute key: (identifier) @property)
 (field_predicate field: (identifier) @property)
+(wave_rate) @constant
 
 (identifier) @variable

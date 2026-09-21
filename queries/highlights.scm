@@ -7,6 +7,7 @@
 [
   "pattern"
   "rule"
+  "preset"
   "test"
   "scenario"
 ] @keyword
@@ -28,9 +29,7 @@
   "close"
   "and"
   "join"
-  "entity"
   "yield"
-  "score"
   "key"
   "conv"
   "limits"
@@ -57,11 +56,13 @@
   "tick"
   "hits"
   "hit"
+  "field"
   "origin"
+  "entity_type"
+  "entity_id"
+  "close_reason"
   "fixed"
   "within"
-  "object"
-  "array"
 ] @keyword
 
 [
@@ -113,6 +114,7 @@
 
 (rule_declaration name: (identifier) @function.definition)
 (pattern_declaration name: (identifier) @function.definition)
+(preset_declaration name: (identifier) @type.definition)
 (test_block name: (identifier) @function.definition)
 (scenario_declaration name: (identifier) @function.definition)
 (test_block rule: (identifier) @function)
@@ -121,6 +123,8 @@
 (event_declaration
   alias: (identifier) @variable
   window: (identifier) @type)
+
+(match_params (field_reference) @variable.parameter)
 
 (background_stream stream: (identifier) @type)
 (inject_case rule: (identifier) @function)
@@ -138,18 +142,25 @@
 (each_clause alias: (identifier) @variable)
 (join_clause window: (identifier) @type)
 (yield_target target: (identifier) @type)
+(yield_preset_ref preset: (identifier) @type)
 (entity_clause type: (identifier) @type)
 (entity_clause type: (string) @type)
 
-(transform) @function.builtin
-(measure) @function.builtin
+(transform) @keyword
+(measure) @keyword
+(score_call "score" @keyword)
+(entity_clause "entity" @keyword)
+(input_statement "row" @keyword)
+(input_statement "tick" @keyword)
+(object_expression "object" @keyword)
+(array_expression "array" @keyword)
 
 (function_call
-  function: (identifier) @function.call)
+  function: (identifier) @keyword)
 
 (function_call
   object: (identifier) @type
-  method: (identifier) @function.method)
+  method: (identifier) @keyword)
 
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "count"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "sum"))
@@ -178,6 +189,8 @@
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "substr"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "indexof"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "concat"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "join"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "join_by"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "split"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "time_diff"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "time_bucket"))
@@ -189,6 +202,7 @@
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "now_us"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "now_ns"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "coalesce"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "merge"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "isnull"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "isnotnull"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "is_blank"))
@@ -196,6 +210,7 @@
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "default_if_blank"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "md5"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "sha1"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "sha1_n"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "sha256"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "hex"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "stable_id"))

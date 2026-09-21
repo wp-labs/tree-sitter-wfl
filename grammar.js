@@ -58,8 +58,9 @@ module.exports = grammar({
     window_attribute: ($) =>
       choice($.stream_attribute, $.time_attribute, $.over_attribute),
 
+    // `stream_tag` is the runtime (wf-lang) spelling; `stream` is kept as an alias.
     stream_attribute: ($) =>
-      seq("stream_tag", "=", choice($.string, $.string_array)),
+      seq(choice("stream", "stream_tag"), "=", choice($.string, $.string_array)),
 
     string_array: ($) =>
       seq("[", $.string, repeat(seq(",", $.string)), "]"),
@@ -249,41 +250,9 @@ module.exports = grammar({
         ">",
         "{",
         optional($.key_block),
-        choice(
-          seq($.on_event_block, optional($.close_block)),
-          $.on_event_mode_block,
-        ),
+        $.on_event_block,
+        optional($.close_block),
         "}",
-      ),
-
-    // `on event seq [consec] [skip = ...] { ... }` — ordered + within/not/consec/skip
-    // `on event any { ... }` — unordered co-occurrence
-    on_event_mode_block: ($) =>
-      seq(
-        "on",
-        "event",
-        field("mode", choice("seq", "any")),
-        optional("consec"),
-        optional(seq("skip", "=", choice("past_last", "to_next"))),
-        "{",
-        repeat1($.seq_rule_step),
-        "}",
-      ),
-
-    // One seq-mode step: `[not] (has <alias> [&& expr] | step_branch) [within dur] ;`
-    seq_rule_step: ($) =>
-      seq(
-        optional("not"),
-        choice(
-          seq(
-            "has",
-            field("alias", $.identifier),
-            optional(seq("&&", $.expression)),
-          ),
-          $.step_branch,
-        ),
-        optional(seq("within", $.duration)),
-        ";",
       ),
 
     match_params: ($) =>
@@ -315,7 +284,41 @@ module.exports = grammar({
       ),
 
     on_event_block: ($) =>
-      seq("on", "event", "{", repeat1($.match_step), "}"),
+      choice(
+        seq("on", "event", "{", repeat1($.match_step), "}"),
+        seq("on", "event", "any", "{", repeat1($.match_step), "}"),
+        seq(
+          "on",
+          "event",
+          "seq",
+          optional($.seq_modifiers),
+          "{",
+          repeat1($.event_seq_step),
+          "}",
+        ),
+      ),
+
+    seq_modifiers: ($) =>
+      choice(
+        "consec",
+        seq("skip", "=", choice("past_last", "to_next")),
+        seq("consec", "skip", "=", choice("past_last", "to_next")),
+      ),
+
+    event_seq_step: ($) =>
+      seq(
+        optional("not"),
+        choice(
+          seq(
+            "has",
+            field("alias", $.identifier),
+            optional(seq("&&", $.expression)),
+          ),
+          $.step_branch,
+        ),
+        optional(seq("within", $.duration)),
+        ";",
+      ),
 
     close_block: ($) => choice($.on_close_block, $.and_close_block),
 
