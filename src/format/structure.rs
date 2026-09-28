@@ -158,7 +158,7 @@ pub(crate) fn format_lines(
     content: &str,
     indent: usize,
     collapse_group_delimiters: bool,
-    collapse_use_object_wrapper: bool,
+    collapse_use_value_wrapper: bool,
 ) -> String {
     let normalized = content.replace("\r\n", "\n").replace('\r', "\n");
     let mut out = String::new();
@@ -178,7 +178,7 @@ pub(crate) fn format_lines(
         let leading_closers = leading_closing_tokens(
             trimmed,
             collapse_group_delimiters,
-            collapse_use_object_wrapper,
+            collapse_use_value_wrapper,
         );
         indent_level = indent_level.saturating_sub(leading_closers);
 
@@ -190,7 +190,7 @@ pub(crate) fn format_lines(
         let (open_count, close_count) = structural_delta(
             trimmed,
             collapse_group_delimiters,
-            collapse_use_object_wrapper,
+            collapse_use_value_wrapper,
         );
         indent_level += open_count;
         indent_level = indent_level.saturating_sub(close_count.saturating_sub(leading_closers));
@@ -205,13 +205,13 @@ pub(crate) fn format_lines(
 fn leading_closing_tokens(
     line: &str,
     collapse_group_delimiters: bool,
-    collapse_use_object_wrapper: bool,
+    collapse_use_value_wrapper: bool,
 ) -> usize {
     let mut count = 0usize;
     let mut has_group_closer = false;
     let mut chars = line.chars().peekable();
 
-    if collapse_use_object_wrapper && line.starts_with("})") {
+    if collapse_use_value_wrapper && (line.starts_with("})") || line.starts_with("])")) {
         count += 1;
         chars.next();
         chars.next();
@@ -232,7 +232,7 @@ fn leading_closing_tokens(
 fn structural_delta(
     line: &str,
     collapse_group_delimiters: bool,
-    collapse_use_object_wrapper: bool,
+    collapse_use_value_wrapper: bool,
 ) -> (usize, usize) {
     let chars: Vec<char> = line.chars().collect();
     let mut open_count = 0usize;
@@ -281,23 +281,23 @@ fn structural_delta(
             continue;
         }
 
-        let use_object_open = collapse_use_object_wrapper
+        let use_value_open = collapse_use_value_wrapper
             && ch == '('
-            && chars.get(i + 1) == Some(&'{')
+            && matches!(chars.get(i + 1), Some('{' | '['))
             && chars[..i].ends_with(&['u', 's', 'e']);
-        let use_object_close = collapse_use_object_wrapper
+        let use_value_close = collapse_use_value_wrapper
             && ch == ')'
             && i > 0
-            && chars[i - 1] == '}'
-            && line.trim_start().starts_with("})");
+            && matches!(chars[i - 1], '}' | ']')
+            && (line.trim_start().starts_with("})") || line.trim_start().starts_with("])"));
 
         match ch {
             '{' => open_count += 1,
             '}' => close_count += 1,
             '(' | '[' if collapse_group_delimiters => has_group_open = true,
             ')' | ']' if collapse_group_delimiters => has_group_close = true,
-            '(' if use_object_open => {}
-            ')' if use_object_close => {}
+            '(' if use_value_open => {}
+            ')' if use_value_close => {}
             '(' | '[' => open_count += 1,
             ')' | ']' => close_count += 1,
             _ => {}

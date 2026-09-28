@@ -49,11 +49,131 @@ impl WfsFormatter {
     }
 
     fn format_validated(&self, content: &str) -> Result<String, WfsFormatError> {
-        Ok(format_lines(content, self.indent, false, false))
+        let content = split_inline_field_declarations(content);
+        Ok(format_lines(&content, self.indent, false, false))
     }
 
     pub fn format_or_original(&self, content: &str) -> String {
         self.format(content).unwrap_or_else(|_| content.to_string())
+    }
+}
+
+fn split_inline_field_declarations(content: &str) -> String {
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&crate::language_wfs())
+        .expect("bundled WFS language must load");
+    let Some(tree) = parser.parse(content, None) else {
+        return content.to_string();
+    };
+    let root = tree.root_node();
+    if root.has_error() {
+        return content.to_string();
+    }
+
+    let mut edits = Vec::new();
+    collect_inline_field_boundaries(root, content, &mut edits);
+    edits.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| right.1.cmp(&left.1)));
+    edits.dedup();
+
+    let mut formatted = content.to_string();
+    for (start, end, replacement) in edits {
+        formatted.replace_range(start..end, &replacement);
+    }
+    formatted
+}
+
+fn collect_inline_field_boundaries(
+    node: tree_sitter::Node<'_>,
+    content: &str,
+    edits: &mut Vec<(usize, usize, String)>,
+) {
+    match node.kind() {
+        "window_declaration" => {
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if matches!(child.kind(), "window_attribute" | "fields_block") {
+                    push_newline_if_inline(content, child.start_byte(), edits);
+                } else if child.kind() == "}" {
+                    push_newline_if_inline(content, child.start_byte(), edits);
+                }
+            }
+        }
+        "fields_block" => {
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == "field_declaration" {
+                    push_newline_if_inline(content, child.start_byte(), edits);
+                    normalize_field_colon_spacing(child, content, edits);
+                } else if child.kind() == "}" {
+                    push_newline_if_inline(content, child.start_byte(), edits);
+                }
+            }
+        }
+        "string_array" => {
+            let mut item_bytes = Vec::new();
+            let mut closing_byte = None;
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == "string" {
+                    item_bytes.push(child.start_byte());
+                } else if child.kind() == "]" {
+                    closing_byte = Some(child.start_byte());
+                }
+            }
+            if item_bytes.len() > 1 {
+                for byte in item_bytes {
+                    push_newline_if_inline(content, byte, edits);
+                }
+                if let Some(byte) = closing_byte {
+                    push_newline_if_inline(content, byte, edits);
+                }
+            }
+        }
+        _ => {}
+    }
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_inline_field_boundaries(child, content, edits);
+    }
+}
+
+fn normalize_field_colon_spacing(
+    node: tree_sitter::Node<'_>,
+    content: &str,
+    edits: &mut Vec<(usize, usize, String)>,
+) {
+    let Some(field_type) = node.child_by_field_name("type") else {
+        return;
+    };
+    let mut colon_end = None;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == ":" {
+            colon_end = Some(child.end_byte());
+            break;
+        }
+    }
+    let Some(start) = colon_end else {
+        return;
+    };
+
+    let end = field_type.start_byte();
+    let gap = &content[start..end];
+    if gap.chars().all(char::is_whitespace) && gap != " " {
+        edits.push((start, end, " ".to_string()));
+    }
+}
+
+fn has_non_whitespace_on_line_before(content: &str, byte: usize) -> bool {
+    let line_start = content[..byte].rfind('\n').map_or(0, |newline| newline + 1);
+    !content[line_start..byte].trim().is_empty()
+}
+
+fn push_newline_if_inline(content: &str, byte: usize, edits: &mut Vec<(usize, usize, String)>) {
+    if has_non_whitespace_on_line_before(content, byte) {
+        edits.push((byte, byte, "\n".to_string()));
     }
 }
 
@@ -232,6 +352,30 @@ window other_logs {
     #[test]
     fn formats_wfusion_schema_with_stream_tag() {
         assert_eq!(format(WFUSION_AUTH_WFS).unwrap(), WFUSION_AUTH_WFS);
+    }
+
+    #[test]
+    fn splits_inline_attributes_arrays_and_fields_with_stable_indentation() {
+        let input = r#"window inline {
+    stream_tag = ["audit", "network"] time = occur_time over = 2h fields { tenant_id: chars alert_id: chars}}
+"#;
+        let expected = r#"window inline {
+    stream_tag = [
+        "audit",
+        "network"
+    ]
+    time = occur_time
+    over = 2h
+    fields {
+        tenant_id: chars
+        alert_id: chars
+    }
+}
+"#;
+
+        let formatted = format_syntax_tree(input).unwrap();
+        assert_eq!(formatted, expected);
+        assert_eq!(format_syntax_tree(&formatted).unwrap(), formatted);
     }
 
     #[test]

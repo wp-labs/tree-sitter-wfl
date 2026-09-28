@@ -49,11 +49,150 @@ impl WfgFormatter {
     }
 
     fn format_validated(&self, content: &str) -> Result<String, WfgFormatError> {
-        Ok(format_lines(content, self.indent, false, true))
+        let content = normalize_layout(content);
+        Ok(format_lines(&content, self.indent, false, true))
     }
 
     pub fn format_or_original(&self, content: &str) -> String {
         self.format(content).unwrap_or_else(|_| content.to_string())
+    }
+}
+
+fn normalize_layout(content: &str) -> String {
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&crate::language_wfg())
+        .expect("bundled WFG language must load");
+    let Some(tree) = parser.parse(content, None) else {
+        return content.to_string();
+    };
+    let root = tree.root_node();
+    if root.has_error() {
+        return content.to_string();
+    }
+
+    let mut edits = Vec::new();
+    collect_layout_boundaries(root, content, &mut edits);
+    edits.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| right.1.cmp(&left.1)));
+    edits.dedup();
+
+    let mut normalized = content.to_string();
+    for (start, end, replacement) in edits {
+        normalized.replace_range(start..end, &replacement);
+    }
+    normalized
+}
+
+fn collect_layout_boundaries(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    edits: &mut Vec<(usize, usize, String)>,
+) {
+    match node.kind() {
+        "json_object" => collect_delimited_list_boundaries(node, source, "json_pair", "}", edits),
+        "json_array" => collect_delimited_list_boundaries(node, source, "json_value", "]", edits),
+        "json_pair" => collect_json_pair_spacing(node, source, edits),
+        "predicate_group" => collect_long_predicate_boundaries(node, source, edits),
+        _ => {}
+    }
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_layout_boundaries(child, source, edits);
+    }
+}
+
+fn collect_delimited_list_boundaries(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    item_kind: &str,
+    closing_kind: &str,
+    edits: &mut Vec<(usize, usize, String)>,
+) {
+    let mut item_count = 0usize;
+    let mut closing_byte = None;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == item_kind {
+            item_count += 1;
+            push_newline_if_inline(source, child.start_byte(), edits);
+        } else if child.kind() == closing_kind {
+            closing_byte = Some(child.start_byte());
+        }
+    }
+
+    if item_count > 0 {
+        if let Some(byte) = closing_byte {
+            push_newline_if_inline(source, byte, edits);
+        }
+    }
+}
+
+fn collect_json_pair_spacing(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    edits: &mut Vec<(usize, usize, String)>,
+) {
+    let Some(value) = node.child_by_field_name("value") else {
+        return;
+    };
+    let mut colon_end = None;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == ":" {
+            colon_end = Some(child.end_byte());
+            break;
+        }
+    }
+
+    let Some(start) = colon_end else {
+        return;
+    };
+    let end = value.start_byte();
+    let gap = &source[start..end];
+    if gap.chars().all(char::is_whitespace) && gap != " " {
+        edits.push((start, end, " ".to_string()));
+    }
+}
+
+fn collect_long_predicate_boundaries(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    edits: &mut Vec<(usize, usize, String)>,
+) {
+    let text = &source[node.byte_range()];
+    if !text.lines().any(|line| line.len() > 100) {
+        return;
+    }
+
+    let mut list = None;
+    let mut closing_byte = None;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "field_predicate_list" {
+            list = Some(child);
+        } else if child.kind() == ")" {
+            closing_byte = Some(child.start_byte());
+        }
+    }
+
+    if let Some(list) = list {
+        let mut cursor = list.walk();
+        for predicate in list.children(&mut cursor) {
+            if predicate.kind() == "field_predicate" {
+                push_newline_if_inline(source, predicate.start_byte(), edits);
+            }
+        }
+    }
+    if let Some(byte) = closing_byte {
+        push_newline_if_inline(source, byte, edits);
+    }
+}
+
+fn push_newline_if_inline(source: &str, byte: usize, edits: &mut Vec<(usize, usize, String)>) {
+    let line_start = source[..byte].rfind('\n').map_or(0, |newline| newline + 1);
+    if !source[line_start..byte].trim().is_empty() {
+        edits.push((byte, byte, "\n".to_string()));
     }
 }
 
@@ -193,7 +332,47 @@ scenario ssh_brute_force_alert_case<seed=42> {
         assert!(formatted.contains("  background {\n    stream xy_system_ssh_log gen 10/s\n  }\n"));
         assert!(formatted
             .contains("    hit<source_ip: 25> for ssh_brute_force_alert xy_system_ssh_log {\n"));
-        assert!(formatted.contains("      use(tenant_id=\"tenant01\", event_category=\"auth\", operation=\"failed_login\", outcome=\"failed\", observer_product=\"sshd\", target_host=\"ent-bas-zerotrust-01\", target_user=\"root\") x 25\n"));
+        assert!(formatted.contains(
+            "      use(\n        tenant_id=\"tenant01\",\n        event_category=\"auth\",\n"
+        ));
+        assert!(formatted.contains("        target_user=\"root\"\n      ) x 25\n"));
+    }
+
+    #[test]
+    fn formats_inline_json_with_nested_indentation() {
+        let input = r#"scenario inline<seed=42> {
+  background { stream auth_events gen 1/s }
+  inject {
+    hit<sip: 1> for rat_propagation_auth auth_events {
+      use({"meta":{"tenant":"t","source":{"vendor":"x"}},"items":[1,2]}) x 1
+    }
+  }
+}
+"#;
+        let expected = r#"scenario inline<seed=42> {
+  background { stream auth_events gen 1/s }
+  inject {
+    hit<sip: 1> for rat_propagation_auth auth_events {
+      use({
+        "meta": {
+          "tenant": "t",
+          "source": {
+            "vendor": "x"
+          }
+        },
+        "items": [
+          1,
+          2
+        ]
+      }) x 1
+    }
+  }
+}
+"#;
+
+        let formatted = format_syntax_tree(input).unwrap();
+        assert_eq!(formatted, expected);
+        assert_eq!(format_syntax_tree(&formatted).unwrap(), formatted);
     }
 
     #[test]

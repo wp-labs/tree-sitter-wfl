@@ -41,14 +41,20 @@ impl WflFormatter {
 
     pub fn format(&self, content: &str) -> Result<String, WflFormatError> {
         validate_structure(content)?;
-        let expanded = expand_long_assignments(content, 100).unwrap_or_else(|| content.to_string());
+        let normalized =
+            normalize_yield_argument_layout(content).unwrap_or_else(|| content.to_string());
+        let expanded =
+            expand_long_assignments(&normalized, 100).unwrap_or_else(|| normalized.clone());
         self.format_validated(&expanded)
     }
 
     pub fn format_syntax_tree(&self, content: &str) -> Result<String, WflFormatError> {
         validate_structure(content)?;
         validate_syntax_tree(content)?;
-        let expanded = expand_long_assignments(content, 100).unwrap_or_else(|| content.to_string());
+        let normalized =
+            normalize_yield_argument_layout(content).unwrap_or_else(|| content.to_string());
+        let expanded =
+            expand_long_assignments(&normalized, 100).unwrap_or_else(|| normalized.clone());
         self.format_validated(&expanded)
     }
 
@@ -59,6 +65,55 @@ impl WflFormatter {
     pub fn format_or_original(&self, content: &str) -> String {
         self.format(content).unwrap_or_else(|_| content.to_string())
     }
+}
+
+fn normalize_yield_argument_layout(content: &str) -> Option<String> {
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&crate::language_wfl()).ok()?;
+    let tree = parser.parse(content, None)?;
+    let root = tree.root_node();
+    if root.has_error() {
+        return None;
+    }
+
+    let mut insert_newlines = Vec::new();
+    collect_yield_argument_boundaries(root, content, &mut insert_newlines);
+    insert_newlines.sort_unstable();
+    insert_newlines.dedup();
+
+    let mut normalized = content.to_string();
+    for byte in insert_newlines.into_iter().rev() {
+        normalized.insert(byte, '\n');
+    }
+    Some(normalized)
+}
+
+fn collect_yield_argument_boundaries(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    insert_newlines: &mut Vec<usize>,
+) {
+    if node.kind() == "yield_clause" {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if matches!(child.kind(), "named_argument" | ")") {
+                let byte = child.start_byte();
+                if has_non_whitespace_on_line_before(source, byte) {
+                    insert_newlines.push(byte);
+                }
+            }
+        }
+    }
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_yield_argument_boundaries(child, source, insert_newlines);
+    }
+}
+
+fn has_non_whitespace_on_line_before(source: &str, byte: usize) -> bool {
+    let line_start = source[..byte].rfind('\n').map_or(0, |newline| newline + 1);
+    !source[line_start..byte].trim().is_empty()
 }
 
 fn expand_long_assignments(content: &str, max_width: usize) -> Option<String> {
@@ -457,6 +512,31 @@ created_time = strftime(@emit_time),
         assert!(formatted.contains("yield preset base_alerts (\n"));
         assert!(formatted.contains("    alert_id = concat(\"alert_\", @__wfu_id),\n"));
         assert!(formatted.contains("    created_time = strftime(@emit_time),\n"));
+        assert_eq!(format_syntax_tree(&formatted).unwrap(), formatted);
+    }
+
+    #[test]
+    fn splits_inline_yield_arguments_and_indents_them() {
+        let input = r#"rule sxf_sip_sec_forward {
+    events { s : sdm_event_behavior }
+    on each s -> score(1.0)
+    entity(alert, s.meta.event_id)
+    yield sxf_sip_sec_feed (        occur_time = s.occur_time, event_id = s.meta.event_id)
+}
+"#;
+        let expected = r#"rule sxf_sip_sec_forward {
+    events { s : sdm_event_behavior }
+    on each s -> score(1.0)
+    entity(alert, s.meta.event_id)
+    yield sxf_sip_sec_feed (
+        occur_time = s.occur_time,
+        event_id = s.meta.event_id
+    )
+}
+"#;
+
+        let formatted = format_syntax_tree(input).unwrap();
+        assert_eq!(formatted, expected);
         assert_eq!(format_syntax_tree(&formatted).unwrap(), formatted);
     }
 
