@@ -1,3 +1,5 @@
+use crate::format::structure::{format_lines, validate_delimiters, DelimiterError};
+
 pub fn format(content: &str) -> Result<String, WflFormatError> {
     WflFormatter::new().format(content)
 }
@@ -39,51 +41,19 @@ impl WflFormatter {
 
     pub fn format(&self, content: &str) -> Result<String, WflFormatError> {
         validate_structure(content)?;
-        let expanded = expand_long_named_arguments(content, 100).unwrap_or_else(|| content.to_string());
+        let expanded = expand_long_assignments(content, 100).unwrap_or_else(|| content.to_string());
         self.format_validated(&expanded)
     }
 
     pub fn format_syntax_tree(&self, content: &str) -> Result<String, WflFormatError> {
         validate_structure(content)?;
         validate_syntax_tree(content)?;
-        let expanded = expand_long_named_arguments(content, 100).unwrap_or_else(|| content.to_string());
+        let expanded = expand_long_assignments(content, 100).unwrap_or_else(|| content.to_string());
         self.format_validated(&expanded)
     }
 
     fn format_validated(&self, content: &str) -> Result<String, WflFormatError> {
-
-        let normalized = content.replace("\r\n", "\n").replace('\r', "\n");
-        let mut out = String::new();
-        let mut indent_level = 0usize;
-        let mut last_blank = false;
-
-        for raw_line in normalized.lines() {
-            let trimmed = raw_line.trim();
-            if trimmed.is_empty() {
-                if !last_blank && !out.is_empty() {
-                    out.push('\n');
-                }
-                last_blank = true;
-                continue;
-            }
-
-            let leading_closers = leading_closing_tokens(trimmed);
-            indent_level = indent_level.saturating_sub(leading_closers);
-
-            out.push_str(&" ".repeat(indent_level * self.indent));
-            out.push_str(trimmed);
-            out.push('\n');
-            last_blank = false;
-
-            let (open_count, close_count) = structural_delta(trimmed);
-            indent_level += open_count;
-            indent_level = indent_level.saturating_sub(close_count.saturating_sub(leading_closers));
-        }
-
-        if !out.ends_with('\n') {
-            out.push('\n');
-        }
-        Ok(out)
+        Ok(format_lines(content, self.indent, true, false))
     }
 
     pub fn format_or_original(&self, content: &str) -> String {
@@ -91,7 +61,7 @@ impl WflFormatter {
     }
 }
 
-fn expand_long_named_arguments(content: &str, max_width: usize) -> Option<String> {
+fn expand_long_assignments(content: &str, max_width: usize) -> Option<String> {
     let mut parser = tree_sitter::Parser::new();
     parser.set_language(&crate::language_wfl()).ok()?;
     let tree = parser.parse(content, None)?;
@@ -100,12 +70,7 @@ fn expand_long_named_arguments(content: &str, max_width: usize) -> Option<String
     }
 
     let mut replacements = Vec::new();
-    collect_long_named_arguments(
-        tree.root_node(),
-        content,
-        max_width,
-        &mut replacements,
-    );
+    collect_long_assignments(tree.root_node(), content, max_width, &mut replacements);
     if replacements.is_empty() {
         return Some(content.to_string());
     }
@@ -117,13 +82,13 @@ fn expand_long_named_arguments(content: &str, max_width: usize) -> Option<String
     Some(result)
 }
 
-fn collect_long_named_arguments(
+fn collect_long_assignments(
     node: tree_sitter::Node<'_>,
     source: &str,
     max_width: usize,
     replacements: &mut Vec<(usize, usize, String)>,
 ) {
-    if node.kind() == "named_argument" {
+    if matches!(node.kind(), "named_argument" | "let_declaration") {
         let text = &source[node.byte_range()];
         let exceeds_width = text.lines().enumerate().any(|(line_index, line)| {
             let prefix = if line_index == 0 {
@@ -139,7 +104,11 @@ fn collect_long_named_arguments(
                 node.child_by_field_name("value"),
             ) {
                 let name = source[name.byte_range()].trim();
-                let prefix = format!("{name} = ");
+                let prefix = if node.kind() == "let_declaration" {
+                    format!("let {name} = ")
+                } else {
+                    format!("{name} = ")
+                };
                 let rendered = render_expression(value, source, prefix.len(), max_width);
                 replacements.push((
                     node.start_byte(),
@@ -153,7 +122,7 @@ fn collect_long_named_arguments(
 
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        collect_long_named_arguments(child, source, max_width, replacements);
+        collect_long_assignments(child, source, max_width, replacements);
     }
 }
 
@@ -179,8 +148,12 @@ fn render_expression(
     // Keep a thin wrapper attached to a nested call. This produces compact
     // forms such as `sha1_n(join_by(` without flattening join_by's arguments.
     if arguments.len() == 2 && unwrap_expression(arguments[0]).kind() == "function_call" {
-        let nested =
-            render_expression(arguments[0], source, prefix_width + head.len() + 1, max_width);
+        let nested = render_expression(
+            arguments[0],
+            source,
+            prefix_width + head.len() + 1,
+            max_width,
+        );
         if nested.contains('\n') {
             let mut lines = nested.lines();
             let first = lines.next().unwrap_or_default();
@@ -238,7 +211,9 @@ fn validate_syntax_tree(content: &str) -> Result<(), WflFormatError> {
     parser
         .set_language(&crate::language_wfl())
         .expect("bundled WFL language must load");
-    let tree = parser.parse(content, None).expect("parser must produce a tree");
+    let tree = parser
+        .parse(content, None)
+        .expect("parser must produce a tree");
     if let Some(point) = first_syntax_error(tree.root_node()) {
         return Err(WflFormatError::Syntax {
             line: point.row + 1,
@@ -264,127 +239,20 @@ fn first_syntax_error(node: tree_sitter::Node<'_>) -> Option<tree_sitter::Point>
 }
 
 fn validate_structure(content: &str) -> Result<(), WflFormatError> {
-    let normalized = content.replace("\r\n", "\n").replace('\r', "\n");
-    let mut stack: Vec<usize> = Vec::new();
-    let mut in_string = false;
-    let mut escaped = false;
-    let mut in_comment = false;
-    let mut line = 1usize;
-    let chars: Vec<char> = normalized.chars().collect();
-    let mut i = 0usize;
-
-    while i < chars.len() {
-        let ch = chars[i];
-
-        if in_comment {
-            if ch == '\n' {
-                in_comment = false;
-                line += 1;
-            }
-            i += 1;
-            continue;
-        }
-
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                in_string = false;
-            } else if ch == '\n' {
-                line += 1;
-            }
-            i += 1;
-            continue;
-        }
-
-        if ch == '/' && i + 1 < chars.len() && chars[i + 1] == '/' {
-            in_comment = true;
-            i += 2;
-            continue;
-        }
-
-        match ch {
-            '"' => in_string = true,
-            '{' => stack.push(line),
-            '}' => {
-                if stack.pop().is_none() {
-                    return Err(WflFormatError::UnexpectedClosing { line });
-                }
-            }
-            '\n' => line += 1,
-            _ => {}
-        }
-        i += 1;
-    }
-
-    if in_string {
-        return Err(WflFormatError::UnclosedString { line });
-    }
-
-    if let Some(open_line) = stack.pop() {
-        return Err(WflFormatError::UnclosedBrace { line: open_line });
-    }
-
-    Ok(())
-}
-
-fn leading_closing_tokens(line: &str) -> usize {
-    let mut count = 0usize;
-    for ch in line.chars() {
-        if matches!(ch, '}' | ')' | ']') {
-            count += 1;
-        } else {
-            break;
-        }
-    }
-    count
-}
-
-fn structural_delta(line: &str) -> (usize, usize) {
-    let mut brace_open_count = 0usize;
-    let mut brace_close_count = 0usize;
-    let mut has_group_open = false;
-    let mut has_group_close = false;
-    let mut in_string = false;
-    let mut escaped = false;
-    let chars: Vec<char> = line.chars().collect();
-    let mut i = 0usize;
-
-    while i < chars.len() {
-        let ch = chars[i];
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                in_string = false;
-            }
-            i += 1;
-            continue;
-        }
-
-        if ch == '/' && i + 1 < chars.len() && chars[i + 1] == '/' {
-            break;
-        }
-
-        match ch {
-            '"' => in_string = true,
-            '{' => brace_open_count += 1,
-            '}' => brace_close_count += 1,
-            '(' | '[' => has_group_open = true,
-            ')' | ']' => has_group_close = true,
-            _ => {}
-        }
-        i += 1;
-    }
-
-    (
-        brace_open_count + usize::from(has_group_open),
-        brace_close_count + usize::from(has_group_close),
-    )
+    validate_delimiters(content).map_err(|error| match error {
+        DelimiterError::UnclosedString { line } => WflFormatError::UnclosedString { line },
+        DelimiterError::UnclosedDelimiter {
+            delimiter: '{',
+            line,
+        } => WflFormatError::UnclosedBrace { line },
+        DelimiterError::UnexpectedClosing {
+            delimiter: '}',
+            line,
+        } => WflFormatError::UnexpectedClosing { line },
+        error => WflFormatError::Structure {
+            message: error.to_string(),
+        },
+    })
 }
 
 #[derive(Debug)]
@@ -392,6 +260,7 @@ pub enum WflFormatError {
     UnclosedString { line: usize },
     UnclosedBrace { line: usize },
     UnexpectedClosing { line: usize },
+    Structure { message: String },
     Syntax { line: usize, column: usize },
 }
 
@@ -407,6 +276,7 @@ impl std::fmt::Display for WflFormatError {
             WflFormatError::UnexpectedClosing { line } => {
                 write!(f, "line {}: unexpected closing brace", line)
             }
+            WflFormatError::Structure { message } => f.write_str(message),
             WflFormatError::Syntax { line, column } => {
                 write!(f, "line {}, column {}: invalid WFL syntax", line, column)
             }
@@ -419,7 +289,7 @@ impl std::error::Error for WflFormatError {}
 #[cfg(test)]
 mod tests {
     use super::{
-        expand_long_named_arguments, format, format_or_original, format_syntax_tree,
+        expand_long_assignments, format, format_or_original, format_syntax_tree,
         format_with_indent, WflFormatError,
     };
 
@@ -633,7 +503,7 @@ rule compact {
 "#;
         let formatted = format_syntax_tree(input).unwrap();
         assert!(
-            expand_long_named_arguments(input, 100)
+            expand_long_assignments(input, 100)
                 .unwrap()
                 .contains("merge_id = concat(\n"),
             "expression expansion did not run for:\n{}",
@@ -643,8 +513,9 @@ rule compact {
                 parser.parse(input, None).unwrap().root_node().to_sexp()
             }
         );
-        assert!(formatted.contains(
-            r#"        merge_id = concat(
+        assert!(
+            formatted.contains(
+                r#"        merge_id = concat(
             "merge_",
             sha1_n(join_by(
                 "|",
@@ -654,7 +525,9 @@ rule compact {
                 lower(coalesce(s.target_domain, ""))
             ), 16)
         )"#
-        ), "formatted output:\n{formatted}");
+            ),
+            "formatted output:\n{formatted}"
+        );
         assert_eq!(format_syntax_tree(&formatted).unwrap(), formatted);
 
         let awkward_multiline = input.replace(
@@ -669,14 +542,13 @@ rule compact {
         );
         assert_eq!(format_syntax_tree(&awkward_multiline).unwrap(), formatted);
     }
-
 }
 
-    #[test]
-    fn formats_chain_rule() {
-        let input = "rule chain_demo {\nevents {\nscan : fw_events\nlogin : auth_events\n}\nmatch<sip:30m> {\nchain {\nhas scan;\nhas login within 10m;\nnot has fail within 5m;\n}\n}\n-> score(80.0)\nentity(ip, scan.sip)\nyield out (x = scan.sip)\n}\n";
-        let formatted = format(input).unwrap();
-        assert!(formatted.contains("    match<sip:30m> {\n        chain {\n            has scan;\n"));
-        assert!(formatted.contains("            has login within 10m;\n"));
-        assert!(formatted.contains("            not has fail within 5m;\n"));
-    }
+#[test]
+fn formats_chain_rule() {
+    let input = "rule chain_demo {\nevents {\nscan : fw_events\nlogin : auth_events\n}\nmatch<sip:30m> {\nchain {\nhas scan;\nhas login within 10m;\nnot has fail within 5m;\n}\n}\n-> score(80.0)\nentity(ip, scan.sip)\nyield out (x = scan.sip)\n}\n";
+    let formatted = format(input).unwrap();
+    assert!(formatted.contains("    match<sip:30m> {\n        chain {\n            has scan;\n"));
+    assert!(formatted.contains("            has login within 10m;\n"));
+    assert!(formatted.contains("            not has fail within 5m;\n"));
+}

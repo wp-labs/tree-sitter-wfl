@@ -59,10 +59,9 @@
 (rate) @number
 (boolean) @constant.builtin
 (json_null) @constant.builtin
-(json_number) @number
 
-[ "(" ")" "{" "}" "<" ">" ] @punctuation.bracket
-[ "," "=" ] @punctuation.delimiter
+[ "(" ")" "{" "}" "[" "]" "<" ">" ] @punctuation.bracket
+[ "," "=" ":" ] @punctuation.delimiter
 "#[" @attribute
 ".." @operator
 

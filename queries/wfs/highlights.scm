@@ -4,6 +4,7 @@
 
 [
   "window"
+  "stream"
   "stream_tag"
   "time"
   "over"

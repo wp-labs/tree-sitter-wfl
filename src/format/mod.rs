@@ -1,3 +1,5 @@
+mod structure;
+
 pub mod wfg;
 pub mod wfl;
 pub mod wfs;

@@ -10,12 +10,14 @@
   "preset"
   "test"
   "scenario"
+  "let"
 ] @keyword
 
 [
   "if"
   "then"
   "else"
+  "case"
 ] @keyword.control
 
 [
@@ -63,6 +65,7 @@
   "close_reason"
   "fixed"
   "within"
+  "accu"
 ] @keyword
 
 [
@@ -83,6 +86,7 @@
 [
   "+"
   "-"
+  "!"
   "*"
   "/"
   "%"
@@ -93,6 +97,7 @@
 "|" @operator
 "|>" @keyword.operator
 "->" @keyword.operator
+"=>" @operator
 
 [ "(" ")" "{" "}" "[" "]" ] @punctuation.bracket
 [ "<" ">" ] @punctuation.bracket
@@ -113,12 +118,15 @@
 (close_reason_ref) @variable.builtin
 
 (rule_declaration name: (identifier) @function.definition)
+(let_declaration name: (identifier) @variable)
 (pattern_declaration name: (identifier) @function.definition)
 (preset_declaration name: (identifier) @type.definition)
 (test_block name: (identifier) @function.definition)
 (scenario_declaration name: (identifier) @function.definition)
 (test_block rule: (identifier) @function)
 (pattern_invocation pattern: (identifier) @function)
+(case_pattern_value (identifier) @constant (#eq? @constant "_"))
+"_" @constant
 
 (event_declaration
   alias: (identifier) @variable
@@ -241,6 +249,7 @@
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "trunc"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "is_finite"))
 (function_call function: (identifier) @function.builtin (#eq? @function.builtin "external"))
+(function_call function: (identifier) @function.builtin (#eq? @function.builtin "time_to_ms"))
 
 (function_call
   object: (identifier) @type
@@ -249,6 +258,10 @@
 
 (field_reference
   object: (identifier) @variable
+  field: (identifier) @property)
+
+(field_reference
+  object: (field_reference)
   field: (identifier) @property)
 
 (named_argument name: (yield_field (identifier) @property))

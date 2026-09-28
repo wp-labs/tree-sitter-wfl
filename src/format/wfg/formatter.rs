@@ -1,3 +1,5 @@
+use crate::format::structure::{format_lines, validate_delimiters, DelimiterError};
+
 pub fn format(content: &str) -> Result<String, WfgFormatError> {
     WfgFormatter::new().format(content)
 }
@@ -26,7 +28,7 @@ impl Default for WfgFormatter {
 
 impl WfgFormatter {
     pub fn new() -> Self {
-        Self { indent: 4 }
+        Self { indent: 2 }
     }
 
     pub fn with_indent(indent: usize) -> Self {
@@ -47,39 +49,7 @@ impl WfgFormatter {
     }
 
     fn format_validated(&self, content: &str) -> Result<String, WfgFormatError> {
-
-        let normalized = content.replace("\r\n", "\n").replace('\r', "\n");
-        let mut out = String::new();
-        let mut indent_level = 0usize;
-        let mut last_blank = false;
-
-        for raw_line in normalized.lines() {
-            let trimmed = raw_line.trim();
-            if trimmed.is_empty() {
-                if !last_blank && !out.is_empty() {
-                    out.push('\n');
-                }
-                last_blank = true;
-                continue;
-            }
-
-            let leading_closers = leading_closing_tokens(trimmed);
-            indent_level = indent_level.saturating_sub(leading_closers);
-
-            out.push_str(&" ".repeat(indent_level * self.indent));
-            out.push_str(trimmed);
-            out.push('\n');
-            last_blank = false;
-
-            let (open_count, close_count) = structural_delta(trimmed);
-            indent_level += open_count;
-            indent_level = indent_level.saturating_sub(close_count.saturating_sub(leading_closers));
-        }
-
-        if !out.ends_with('\n') {
-            out.push('\n');
-        }
-        Ok(out)
+        Ok(format_lines(content, self.indent, false, true))
     }
 
     pub fn format_or_original(&self, content: &str) -> String {
@@ -92,7 +62,9 @@ fn validate_syntax_tree(content: &str) -> Result<(), WfgFormatError> {
     parser
         .set_language(&crate::language_wfg())
         .expect("bundled WFG language must load");
-    let tree = parser.parse(content, None).expect("parser must produce a tree");
+    let tree = parser
+        .parse(content, None)
+        .expect("parser must produce a tree");
     if let Some(point) = first_syntax_error(tree.root_node()) {
         return Err(WfgFormatError::Syntax {
             line: point.row + 1,
@@ -118,120 +90,20 @@ fn first_syntax_error(node: tree_sitter::Node<'_>) -> Option<tree_sitter::Point>
 }
 
 fn validate_structure(content: &str) -> Result<(), WfgFormatError> {
-    let normalized = content.replace("\r\n", "\n").replace('\r', "\n");
-    let mut stack: Vec<usize> = Vec::new();
-    let mut in_string = false;
-    let mut escaped = false;
-    let mut in_comment = false;
-    let mut line = 1usize;
-    let chars: Vec<char> = normalized.chars().collect();
-    let mut i = 0usize;
-
-    while i < chars.len() {
-        let ch = chars[i];
-
-        if in_comment {
-            if ch == '\n' {
-                in_comment = false;
-                line += 1;
-            }
-            i += 1;
-            continue;
-        }
-
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                in_string = false;
-            } else if ch == '\n' {
-                line += 1;
-            }
-            i += 1;
-            continue;
-        }
-
-        if ch == '/' && i + 1 < chars.len() && chars[i + 1] == '/' {
-            in_comment = true;
-            i += 2;
-            continue;
-        }
-
-        match ch {
-            '"' => in_string = true,
-            '{' => stack.push(line),
-            '}' => {
-                if stack.pop().is_none() {
-                    return Err(WfgFormatError::UnexpectedClosing { line });
-                }
-            }
-            '\n' => line += 1,
-            _ => {}
-        }
-        i += 1;
-    }
-
-    if in_string {
-        return Err(WfgFormatError::UnclosedString { line });
-    }
-
-    if let Some(open_line) = stack.pop() {
-        return Err(WfgFormatError::UnclosedBrace { line: open_line });
-    }
-
-    Ok(())
-}
-
-fn leading_closing_tokens(line: &str) -> usize {
-    let mut count = 0usize;
-    for ch in line.chars() {
-        if matches!(ch, '}' | ')' | ']') {
-            count += 1;
-        } else {
-            break;
-        }
-    }
-    count
-}
-
-fn structural_delta(line: &str) -> (usize, usize) {
-    let mut open_count = 0usize;
-    let mut close_count = 0usize;
-    let mut in_string = false;
-    let mut escaped = false;
-    let chars: Vec<char> = line.chars().collect();
-    let mut i = 0usize;
-
-    while i < chars.len() {
-        let ch = chars[i];
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                in_string = false;
-            }
-            i += 1;
-            continue;
-        }
-
-        if ch == '/' && i + 1 < chars.len() && chars[i + 1] == '/' {
-            break;
-        }
-
-        match ch {
-            '"' => in_string = true,
-            '{' | '(' | '[' => open_count += 1,
-            '}' | ')' | ']' => close_count += 1,
-            _ => {}
-        }
-        i += 1;
-    }
-
-    (open_count, close_count)
+    validate_delimiters(content).map_err(|error| match error {
+        DelimiterError::UnclosedString { line } => WfgFormatError::UnclosedString { line },
+        DelimiterError::UnclosedDelimiter {
+            delimiter: '{',
+            line,
+        } => WfgFormatError::UnclosedBrace { line },
+        DelimiterError::UnexpectedClosing {
+            delimiter: '}',
+            line,
+        } => WfgFormatError::UnexpectedClosing { line },
+        error => WfgFormatError::Structure {
+            message: error.to_string(),
+        },
+    })
 }
 
 #[derive(Debug)]
@@ -239,6 +111,7 @@ pub enum WfgFormatError {
     UnclosedString { line: usize },
     UnclosedBrace { line: usize },
     UnexpectedClosing { line: usize },
+    Structure { message: String },
     Syntax { line: usize, column: usize },
 }
 
@@ -254,6 +127,7 @@ impl std::fmt::Display for WfgFormatError {
             WfgFormatError::UnexpectedClosing { line } => {
                 write!(f, "line {}: unexpected closing brace", line)
             }
+            WfgFormatError::Structure { message } => f.write_str(message),
             WfgFormatError::Syntax { line, column } => {
                 write!(f, "line {}, column {}: invalid WFG syntax", line, column)
             }
@@ -305,24 +179,27 @@ scenario ssh_brute_force_alert_case<seed=42> {
     fn formats_sample_wfg() {
         let formatted = format(NETWORK_WFG).unwrap();
         assert!(formatted.contains("#[duration=10s]\nscenario sandbox<seed=42> {\n"));
-        assert!(formatted.contains("    background { stream auth_events gen 5/s }\n"));
-        assert!(formatted.contains("        hit<sip: 100> for rat_propagation_auth auth_events {\n"));
-        assert!(formatted.contains("            use(result=\"success\", service=\"ssh\", dport=22, dip=\"192.168.1.10\") x 10\n"));
+        assert!(formatted.contains("  background { stream auth_events gen 5/s }\n"));
+        assert!(formatted.contains("    hit<sip: 100> for rat_propagation_auth auth_events {\n"));
+        assert!(formatted.contains(
+            "      use(result=\"success\", service=\"ssh\", dport=22, dip=\"192.168.1.10\") x 10\n"
+        ));
     }
 
     #[test]
     fn formats_wfusion_scenario() {
         let formatted = format(WFUSION_SCENARIO_WFG).unwrap();
         assert!(formatted.contains("scenario ssh_brute_force_alert_case<seed=42> {\n"));
-        assert!(formatted.contains("    background {\n        stream xy_system_ssh_log gen 10/s\n    }\n"));
-        assert!(formatted.contains("        hit<source_ip: 25> for ssh_brute_force_alert xy_system_ssh_log {\n"));
-        assert!(formatted.contains("            use(tenant_id=\"tenant01\", event_category=\"auth\", operation=\"failed_login\", outcome=\"failed\", observer_product=\"sshd\", target_host=\"ent-bas-zerotrust-01\", target_user=\"root\") x 25\n"));
+        assert!(formatted.contains("  background {\n    stream xy_system_ssh_log gen 10/s\n  }\n"));
+        assert!(formatted
+            .contains("    hit<source_ip: 25> for ssh_brute_force_alert xy_system_ssh_log {\n"));
+        assert!(formatted.contains("      use(tenant_id=\"tenant01\", event_category=\"auth\", operation=\"failed_login\", outcome=\"failed\", observer_product=\"sshd\", target_host=\"ent-bas-zerotrust-01\", target_user=\"root\") x 25\n"));
     }
 
     #[test]
     fn formats_indentation() {
         let input = "scenario x {\nbackground {\nstream a gen 1/s\n}\n}\n";
-        let expected = "scenario x {\n    background {\n        stream a gen 1/s\n    }\n}\n";
+        let expected = "scenario x {\n  background {\n    stream a gen 1/s\n  }\n}\n";
         assert_eq!(format(input).unwrap(), expected);
     }
 

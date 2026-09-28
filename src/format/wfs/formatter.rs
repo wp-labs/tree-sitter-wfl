@@ -1,3 +1,5 @@
+use crate::format::structure::{format_lines, validate_delimiters, DelimiterError};
+
 pub fn format(content: &str) -> Result<String, WfsFormatError> {
     WfsFormatter::new().format(content)
 }
@@ -47,39 +49,7 @@ impl WfsFormatter {
     }
 
     fn format_validated(&self, content: &str) -> Result<String, WfsFormatError> {
-
-        let normalized = content.replace("\r\n", "\n").replace('\r', "\n");
-        let mut out = String::new();
-        let mut indent_level = 0usize;
-        let mut last_blank = false;
-
-        for raw_line in normalized.lines() {
-            let trimmed = raw_line.trim();
-            if trimmed.is_empty() {
-                if !last_blank && !out.is_empty() {
-                    out.push('\n');
-                }
-                last_blank = true;
-                continue;
-            }
-
-            let leading_closers = leading_closing_tokens(trimmed);
-            indent_level = indent_level.saturating_sub(leading_closers);
-
-            out.push_str(&" ".repeat(indent_level * self.indent));
-            out.push_str(trimmed);
-            out.push('\n');
-            last_blank = false;
-
-            let (open_count, close_count) = structural_delta(trimmed);
-            indent_level += open_count;
-            indent_level = indent_level.saturating_sub(close_count.saturating_sub(leading_closers));
-        }
-
-        if !out.ends_with('\n') {
-            out.push('\n');
-        }
-        Ok(out)
+        Ok(format_lines(content, self.indent, false, false))
     }
 
     pub fn format_or_original(&self, content: &str) -> String {
@@ -92,7 +62,9 @@ fn validate_syntax_tree(content: &str) -> Result<(), WfsFormatError> {
     parser
         .set_language(&crate::language_wfs())
         .expect("bundled WFS language must load");
-    let tree = parser.parse(content, None).expect("parser must produce a tree");
+    let tree = parser
+        .parse(content, None)
+        .expect("parser must produce a tree");
     if let Some(point) = first_syntax_error(tree.root_node()) {
         return Err(WfsFormatError::Syntax {
             line: point.row + 1,
@@ -118,120 +90,20 @@ fn first_syntax_error(node: tree_sitter::Node<'_>) -> Option<tree_sitter::Point>
 }
 
 fn validate_structure(content: &str) -> Result<(), WfsFormatError> {
-    let normalized = content.replace("\r\n", "\n").replace('\r', "\n");
-    let mut stack: Vec<usize> = Vec::new();
-    let mut in_string = false;
-    let mut escaped = false;
-    let mut in_comment = false;
-    let mut line = 1usize;
-    let chars: Vec<char> = normalized.chars().collect();
-    let mut i = 0usize;
-
-    while i < chars.len() {
-        let ch = chars[i];
-
-        if in_comment {
-            if ch == '\n' {
-                in_comment = false;
-                line += 1;
-            }
-            i += 1;
-            continue;
-        }
-
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                in_string = false;
-            } else if ch == '\n' {
-                line += 1;
-            }
-            i += 1;
-            continue;
-        }
-
-        if ch == '/' && i + 1 < chars.len() && chars[i + 1] == '/' {
-            in_comment = true;
-            i += 2;
-            continue;
-        }
-
-        match ch {
-            '"' => in_string = true,
-            '{' => stack.push(line),
-            '}' => {
-                if stack.pop().is_none() {
-                    return Err(WfsFormatError::UnexpectedClosing { line });
-                }
-            }
-            '\n' => line += 1,
-            _ => {}
-        }
-        i += 1;
-    }
-
-    if in_string {
-        return Err(WfsFormatError::UnclosedString { line });
-    }
-
-    if let Some(open_line) = stack.pop() {
-        return Err(WfsFormatError::UnclosedBrace { line: open_line });
-    }
-
-    Ok(())
-}
-
-fn leading_closing_tokens(line: &str) -> usize {
-    let mut count = 0usize;
-    for ch in line.chars() {
-        if matches!(ch, '}' | ')' | ']') {
-            count += 1;
-        } else {
-            break;
-        }
-    }
-    count
-}
-
-fn structural_delta(line: &str) -> (usize, usize) {
-    let mut open_count = 0usize;
-    let mut close_count = 0usize;
-    let mut in_string = false;
-    let mut escaped = false;
-    let chars: Vec<char> = line.chars().collect();
-    let mut i = 0usize;
-
-    while i < chars.len() {
-        let ch = chars[i];
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                in_string = false;
-            }
-            i += 1;
-            continue;
-        }
-
-        if ch == '/' && i + 1 < chars.len() && chars[i + 1] == '/' {
-            break;
-        }
-
-        match ch {
-            '"' => in_string = true,
-            '{' | '(' | '[' => open_count += 1,
-            '}' | ')' | ']' => close_count += 1,
-            _ => {}
-        }
-        i += 1;
-    }
-
-    (open_count, close_count)
+    validate_delimiters(content).map_err(|error| match error {
+        DelimiterError::UnclosedString { line } => WfsFormatError::UnclosedString { line },
+        DelimiterError::UnclosedDelimiter {
+            delimiter: '{',
+            line,
+        } => WfsFormatError::UnclosedBrace { line },
+        DelimiterError::UnexpectedClosing {
+            delimiter: '}',
+            line,
+        } => WfsFormatError::UnexpectedClosing { line },
+        error => WfsFormatError::Structure {
+            message: error.to_string(),
+        },
+    })
 }
 
 #[derive(Debug)]
@@ -239,6 +111,7 @@ pub enum WfsFormatError {
     UnclosedString { line: usize },
     UnclosedBrace { line: usize },
     UnexpectedClosing { line: usize },
+    Structure { message: String },
     Syntax { line: usize, column: usize },
 }
 
@@ -254,6 +127,7 @@ impl std::fmt::Display for WfsFormatError {
             WfsFormatError::UnexpectedClosing { line } => {
                 write!(f, "line {}: unexpected closing brace", line)
             }
+            WfsFormatError::Structure { message } => f.write_str(message),
             WfsFormatError::Syntax { line, column } => {
                 write!(f, "line {}, column {}: invalid WFS syntax", line, column)
             }

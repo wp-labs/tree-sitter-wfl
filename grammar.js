@@ -180,13 +180,26 @@ module.exports = grammar({
         field("name", $.identifier),
         "{",
         optional($.meta_block),
+        repeat($.let_declaration),
         $.events_block,
+        repeat($.let_declaration),
         $.rule_flow,
         $.entity_clause,
         $.yield_clause,
         optional($.conv_clause),
         optional($.limits_clause),
         "}",
+      ),
+
+    // Rule-local values are commonly declared both before and after events.
+    // Keep the optional semicolon for hand-written and generated model files.
+    let_declaration: ($) =>
+      seq(
+        "let",
+        field("name", $.identifier),
+        "=",
+        field("value", $.expression),
+        optional(";"),
       ),
 
     rule_flow: ($) =>
@@ -286,6 +299,16 @@ module.exports = grammar({
     on_event_block: ($) =>
       choice(
         seq("on", "event", "{", repeat1($.match_step), "}"),
+        seq(
+          "on",
+          "event",
+          "<",
+          field("mode", $.identifier),
+          ">",
+          "{",
+          repeat1($.match_step),
+          "}",
+        ),
         seq("on", "event", "any", "{", repeat1($.match_step), "}"),
         seq(
           "on",
@@ -933,7 +956,34 @@ module.exports = grammar({
       ),
 
     unary_expression: ($) =>
-      prec(PREC.UNARY, seq("-", $.expression)),
+      prec(PREC.UNARY, seq(choice("-", "!"), $.expression)),
+
+    case_expression: ($) =>
+      seq(
+        "case",
+        field("value", $.expression),
+        "{",
+        $.case_arm,
+        repeat(seq(",", $.case_arm)),
+        optional(","),
+        "}",
+      ),
+
+    case_arm: ($) =>
+      seq(
+        field("pattern", $.case_pattern),
+        "=>",
+        field("value", $.expression),
+      ),
+
+    case_pattern: ($) =>
+      seq(
+        $.case_pattern_value,
+        repeat(seq("|", $.case_pattern_value)),
+      ),
+
+    case_pattern_value: ($) =>
+      choice($.string, $.number, $.boolean, $.identifier, "_"),
 
     if_expression: ($) =>
       prec.right(
@@ -980,6 +1030,7 @@ module.exports = grammar({
         $.array_expression,
         $.function_call,
         $.aggregate_pipe_expression,
+        $.case_expression,
         $.field_reference,
         $.parenthesized_expression,
       ),
@@ -1011,13 +1062,39 @@ module.exports = grammar({
 
     field_reference: ($) =>
       choice(
-        prec(
+        prec.left(
           PREC.MEMBER,
-          seq(field("object", choice($.identifier, $.variable)), ".", field("field", $.identifier)),
+          seq(
+            field("object", $.field_reference),
+            ".",
+            field("field", $.identifier),
+          ),
+        ),
+        prec.left(
+          PREC.MEMBER,
+          seq(
+            field("object", choice($.identifier, $.variable)),
+            ".",
+            field("field", $.identifier),
+          ),
         ),
         prec(
           PREC.MEMBER,
-          seq(field("object", choice($.identifier, $.variable)), "[", $.string, "]"),
+          seq(
+            field("object", $.field_reference),
+            "[",
+            choice($.string, $.number),
+            "]",
+          ),
+        ),
+        prec(
+          PREC.MEMBER,
+          seq(
+            field("object", choice($.identifier, $.variable)),
+            "[",
+            choice($.string, $.number),
+            "]",
+          ),
         ),
         $.identifier,
         $.variable,
